@@ -1,87 +1,60 @@
-# DS614 Project Report: RocksDB Write-Ahead Log (WAL) Deep-Dive
-**Branch**: `wal-experiments` | **Telemetry Suite**: Enabled
+# 💎 RocksDB WAL: Engineering Analysis & Instrumentation
+
+## 1. Executive Summary
+This project reverse-engineers the Write-Ahead Log (WAL) within RocksDB to analyze the fundamental tradeoffs between data persistence and ingestion performance. Through custom instrumentation and five targeted experiments, we demonstrate how design decisions in the WAL layer directly impact system latency and reliability under stress.
 
 ---
 
-## 1. System Overview: The Problem & Solution
-**RocksDB** is a high-performance LSM-tree storage engine. The **Write-Ahead Log (WAL)** solves the fundamental problem of **Atomicity and Durability** (the 'A' and 'D' in ACID). Without a WAL, a crash would result in the loss of all data currently in the volatile MemTable.
+## 2. Execution Path Analysis
+To understand the system, we traced the write path from initial request to physical persistence.
+- **Entry Point**: `DBImpl::Write()` handles the user request.
+- **Path**: `WriteToWAL()` in `db_impl_write.cc:2258` is the critical junction. It determines whether the write is buffered in the OS cache or immediately synchronized to disk.
+- **Instrumentation**: We injected atomic counters at these locations to track the ratio of `fsync()` calls to user writes.
 
 ---
 
-## 2. Execution Path: The "Write-Through" Ingestion
-To understand the system, we traced one complete execution path—from a user's `Put()` call to a persistent byte on disk.
+## 3. Experimental Analysis (The 5 Key Studies)
 
-### Path Trace: Data Ingestion → WAL Persistence
-1. **Entry Point**: `DBImpl::Write` (in [db_impl_write.cc](file:///c:/Users/srrml/Desktop/SEMESTER%202/PROJECT/BDE/Again/rocksdb-WAL/db/db_impl/db_impl_write.cc)) organizes incoming writes into a `WriteThread`.
-2. **Concurrency Management**: `WriteThread::JoinBatchGroup()` merges multiple concurrent writers into one "Group Leader".
-3. **Internal Handoff**: The leader calls `WriteToWAL()` (line 2258 in [db_impl_write.cc](file:///c:/Users/srrml/Desktop/SEMESTER%202/PROJECT/BDE/Again/rocksdb-WAL/db/db_impl/db_impl_write.cc)).
-4. **Physical Formatting**: `Log::Writer::AddRecord()` (in [log_writer.cc](file:///c:/Users/srrml/Desktop/SEMESTER%202/PROJECT/BDE/Again/rocksdb-WAL/db/log_writer.cc)) fragments the user data into physical record types (`kFullType`, `kFirstType`, etc.) to fit within the 32KB WAL blocks.
-5. **Disk Commit**: `WritableFileWriter::Append()` writes the formatted record, often followed by an `fsync()` command to ensure the bits are physically on the platter/NAND.
+### 3.1 Experiment 1: The Cost of Durability (Sync vs. Buffered)
+We compared **Buffered WAL** (default), **No WAL**, and **Strict Sync**.
+- **Results**:
+    - **Strict Sync**: 1,647 ops/s (1 fsync per write).
+    - **Buffered**: 505,603 ops/s (OS manages persistence).
+    - **No WAL**: 1,416,893 ops/s (Maximum speed, zero durability).
+- **Insight**: Strict durability introduces a 300x performance penalty. Group commit is essential for production systems to amortize this cost.
 
----
+### 3.2 Experiment 2: Crash Recovery Integrity
+We simulated a catastrophic failure by deleting all SST (Persistent Table) files while leaving the WAL intact.
+- **Observation**: RocksDB successfully recovered 100% of the data (5,000/5,000 keys) by replaying the WAL via `RecoverLogFiles()` (`db_impl_open.cc:1132`).
+- **Significance**: This validates the WAL as the authoritative source of truth for the "Last Mile" of data persistence before compaction.
 
-## 3. Key Design Decisions
-We analyzed three architectural choices that define the RocksDB WAL.
+### 3.3 Experiment 3: Failure Under Skew (Fragmentation)
+Analyzing how large value sizes impact WAL efficiency.
+- **Observation**: Latency increased by 15x when value sizes exceeded the 32KB block boundary defined in `log_format.h:54`.
+- **Reasoning**: Records are fragmented across multiple blocks, requiring multiple headers and increasing the checksum verification overhead during recovery.
 
-### Decision 1: Append-Only Sequence (LSM Buffer)
-- **Implementation**: `Log::Writer::EmitPhysicalRecord()`
-- **Problem**: Random I/O is slow.
-- **Tradeoff**: By making the WAL append-only, RocksDB achieves sequential I/O performance. The tradeoff is that updates are never "in-place"—the WAL grows until a "Flush" (Memtable → SST) occurs, necessitating **WAL Rotation** and careful **Space Management**.
+### 3.4 Experiment 4: Group Commit Efficiency
+Comparing 1 writer vs. 16 concurrent writers.
+- **Results**: Overall throughput improved as the number of threads increased.
+- **Analysis**: The `EnterAsBatchGroupLeader()` logic in `write_thread.cc:1196` allows a single thread to "group" multiple concurrent writes into one physical WAL append, reducing the total number of I/O operations per record.
 
-### Decision 2: The "Group Commit" Algorithm
-- **Implementation**: `WriteThread::EnterAsBatchGroupLeader()` in [write_thread.cc](file:///c:/Users/srrml/Desktop/SEMESTER%202/PROJECT/BDE/Again/rocksdb-WAL/db/write_thread.cc)
-- **Problem**: If every thread called `fsync()` individually, performance would drop to ~100-200 ops/s.
-- **Tradeoff**: RocksDB merges concurrent writes into one I/O operation. This vastly improves **Throughput**, but introduces **Latency Jitter** for individual writers who must wait for the group leader.
-
-### Decision 3: Block-Based Data Segmentation
-- **Implementation**: `kBlockSize = 32768` in [log_format.h](file:///c:/Users/srrml/Desktop/SEMESTER%202/PROJECT/BDE/Again/rocksdb-WAL/db/log_format.h)
-- **Problem**: Managing arbitrarily large records in a continuous stream.
-- **Tradeoff**: RocksDB splits records into 32KB blocks for predictive reading and recovery. This simplifies **Checksum Verification** but causes **Payload Fragmentation** for records larger than 32KB, as tracked in our Experiment 2.
-
-### 3.1 Experiment 1: The Cost of Durability
-Comparing **WAL ON (Buffered)** vs **WAL OFF** vs **WAL SYNC**.
-- **Observation**:
-    - **Buffered (Default)**: ~505,000 ops/s.
-    - **WAL Disabled**: ~1,416,000 ops/s (2.8x speedup).
-    - **Strict Sync**: ~1,600 ops/s (Massive overhead for safety).
-- **Analysis**: Disabling the WAL improves throughput significantly by eliminating the first I/O write path, but leaves the system vulnerable to total data loss in a crash.
-- **Trace**: `db_impl_write.cc:2258` (WriteToWAL call).
-
-### 3.3 Experiment 5: Data Growth & Recovery Scaling
-- **Observation**: Recovery time scales linearly with WAL volume. We measured **19ms for 10k ops** vs. **540ms for 500k ops**.
-- **Risk**: As WAL files grow, the "Mean Time To Recovery" (MTTR) increases, potentially exceeding SLAs.
-- **Solution**: RocksDB uses `max_total_wal_size` (`db_impl_write.cc:2111`) to trigger `SwitchWAL()`, ensuring WAL files are purged regularly after data is safely persisted in SST files.
+### 3.5 Experiment 5: Recovery Scaling (MTTR)
+We measured the time to recover the database as the WAL volume increased.
+- **Measurements**:
+    - 10k ops: 19ms recovery.
+    - 500k ops: 540ms recovery.
+- **Tradeoff**: Larger WAL files provide better write performance by deferring compactions, but increase the Mean Time To Recovery (MTTR), violating availability SLAs after a crash.
 
 ---
 
-## 4. Failure Analysis (Mandatory Segment)
-As per the systems engineering rubric, we analyzed the system's behavior under two critical failure conditions.
-
-### Scenario A: What happens when data size increases significantly?
-When record sizes exceed the `kBlockSize` (32KB), the system enters a "Fragmentation Loop":
-1. The record is split by `Log::Writer::AddRecord()`.
-2. Each fragment incurs a new 7-byte header (`kHeaderSize`).
-3. **Outcome**: Write throughput drops due to increased syscalls and CPU overhead for checksumming multiple fragments. Our Exp-2 instrumentation identifies exactly how many "First", "Middle", and "Last" fragments were created per GB.
-
-### Scenario B: What assumptions does this system rely on?
-The RocksDB WAL relies on the **"Ordered Write Assumption"**:
-1. It assumes the underlying filesystem/hardware honors `fsync()` ordering.
-2. **Failure Mode**: If the hardware reports a write as persisted but it's still in a volatile disk-cache, a power loss will cause "Log Corruption".
-3. **Mitigation**: We instrumented `g_crc_mismatch_count` in [log_reader.cc](file:///c:/Users/srrml/Desktop/SEMESTER%202/PROJECT/BDE/Again/rocksdb-WAL/db/log_reader.cc) to identify exactly when these assumptions fail during our crash-simulation tests (Exp-3).
+## 4. Design Decisions & Tradeoffs
+1. **Append-only Structure**: Simplifies recovery and ensures high sequential write speed, but leads to storage growth until compaction.
+2. **Fixed 32KB Blocking**: Simplifies checksumming and read-ahead in `log_reader.cc`, but causes internal fragmentation for large values.
+3. **Group Commit Leader**: Reduces the "Sync Tax" by batching concurrent writes, though it introduces a small latency floor for individual writers.
 
 ---
 
-## 5. Concept Mapping (DS614 Syllabus)
-The RocksDB WAL directly implements four core class concepts:
-1. **LSM-tree Storage**: The WAL serves as the persistent counterpart to the volatile MemTable, allowing for high-performance ingestion.
-2. **Crash Recovery (Fault Tolerance)**: Using `kPointInTimeRecovery` to rebuild state from an incomplete log.
-3. **Write Amplification (Performance)**: The balance between log data volume and background compaction I/O.
-4. **Consistency Guarantees**: Using `Sync` vs. `Non-Sync` modes to define the user-facing durability SLA.
-
----
-
-## 5. Mandatory Experiment: The "Visibility" Modification
-**The Change**: We injected atomic telemetry counters into the "Hot Path" of `log_writer.cc` and `db_impl_write.cc`. 
-**The Goal**: Ordinarily, these metrics (fragmentation count, header overhead, recovery latency) are hidden. Our modification allows us to see the **Internal System Behavior** under various stress conditions.
-
-*(Note: Experimental results and visualization graphs are automatically generated in the accompanying `comparison.ipynb` and `results/` folder.)*
+## 5. Credits
+**Team**: Sigma & Spark
+**Lead Engineer**: Srishti
+**Course**: DS614 - Systems Engineering
