@@ -1,7 +1,7 @@
 # 💎 RocksDB WAL: Engineering Analysis & Instrumentation
 
 [![View Code Changes](https://img.shields.io/badge/🛠️-View_Code_Changes_(Diff)-orange?style=for-the-badge)](https://github.com/srishti7103/rocksdb-WAL/compare/main...wal-experiments)
-[![View Comparison Analysis](https://img.shields.io/badge/🔍-View_Comparison_Notebook-blue?style=for-the-badge)](./analytics/comparison.ipynb)
+[![View Comparison Analysis](https://img.shields.io/badge/🔍-View_Comparison_Notebook-blue?style=for-the-badge)](./comparison.ipynb)
 [![View Full Report](https://img.shields.io/badge/📄-View_Detailed_Report-green?style=for-the-badge)](./report.md)
 
 This project reverse-engineers and instruments the **RocksDB Write-Ahead Log (WAL)** to analyze the fundamental tradeoffs between persistence guarantees and write throughput. Developed as part of the DS614 Systems Engineering curriculum.
@@ -9,8 +9,7 @@ This project reverse-engineers and instruments the **RocksDB Write-Ahead Log (WA
 ---
 
 ## 🚦 Quick Access Links
-- 🧪 **[Experiment Suite](./experiments/)**: C++ drivers for performance benchmarking.
-- 📈 **[Analytics Dashboard](./analytics/comparison.ipynb)**: Data visualization and telemetry analysis.
+- 📈 **[Analytics Dashboard](./comparison.ipynb)**: Data visualization and telemetry analysis.
 - 📚 **[Metric Glossary](./stats.md)**: Definition of custom instrumentation points.
 - 📑 **[System Report](./report.md)**: Academic write-up and failure analysis.
 
@@ -28,15 +27,10 @@ rocksdb-WAL/
 │   ├── db_impl/
 │   │   ├── db_impl_write.cc   # Instrumentation: Sync modes & Batching (Exp 1 & 4)
 │   │   └── db_impl_open.cc    # Instrumentation: Recovery Telemetry (Exp 3)
-├── experiments/               # Standalone C++ benchmark drivers
-│   ├── exp1_wal_throughput.cpp
-│   ├── exp2_crash_recovery.cpp
-│   └── ... (Exp 3-6)
-├── analytics/                 # Python/Jupyter Data Analysis
-│   ├── comparison.ipynb       # Deep-dive visualization
-│   └── requirements.txt       # Python dependencies
-├── results/                   # Raw telemetry data (.csv)
-└── docs/                      # Scientific reports and images
+├── 📑 comparison.ipynb        # Data visualization and telemetry analysis
+├── 📊 report.md               # Final engineering report
+├── 📑 stats.md                # Instrumentation glossary
+└── 📂 docs/                   # Scientific images and documentation
 ```
 
 ---
