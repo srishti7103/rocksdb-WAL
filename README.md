@@ -44,6 +44,11 @@ Focused overview of edited and newly added components:
 
 ---
 
+## Quick Access: Documentation and Verification
+* [README.md](./README.md): Main project landing page.
+* [report.md](./report.md): Formal Systems Engineering report.
+* [comparison.ipynb](./comparison.ipynb): Data verification and analysis notebook.
+
 ## Quick Access: Instrumented Files
 * [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
 * [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
