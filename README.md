@@ -82,3 +82,21 @@ Individual insights derived from custom instrumentation telemetry.
 ### Study 5: Recovery Scaling and MTTR
 <img src="./docs/images/exp5_efficiency.png" width="400" />
 **Insight**: Mean Time To Recovery (MTTR) increases linearly with the volume of uncompressed WAL data.
+
+---
+
+## Code Modification Statistics
+Quantitative breakdown of instrumentation changes across the core RocksDB system files:
+
+| Instrumented File | Additions (+) | Deletions (-) | Summary of Change |
+| :--- | :--- | :--- | :--- |
+| `db/log_writer.cc` | 18 | 0 | Fragmentation and payload atomic counters |
+| `db/log_writer.h` | 13 | 0 | External counter declarations |
+| `db/write_thread.h` | 19 | 0 | Batching and group commit metrics |
+| `db/write_thread.cc` | 10 | 0 | Group commit efficiency logic |
+| `db/db_impl/db_impl_write.cc` | 10 | 0 | Sync-mode performance counters |
+| `db/db_impl/db_impl_open.cc` | 10 | 0 | Recovery path timing and telemetry |
+| `db/log_reader.cc` | 5 | 0 | CRC mismatch and corruption detection |
+| `db/log_format.h` | 4 | 0 | Configurable block-level macro logic |
+
+---
