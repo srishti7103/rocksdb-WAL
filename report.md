@@ -102,6 +102,11 @@ We observed that WAL replay performance exhibits **Linear Complexity ($O(n)$)**.
 
 RocksDB handles this through **Torn Write Detection**. The WAL replayer (Study 3) identifies records with missing "Last" fragments or mismatched CRC-32 signatures and discards them, ensuring the system never recovers into a partially-written, inconsistent state. By adopting faster recovery modes, we observed a **14x reduction** in MTTR.
 
+### 5.3 Architectural Assumptions
+The RocksDB WAL subsystem operates under the following critical assumptions:
+1.  **Storage Atomicity**: The system assumes that the underlying hardware (SSD/HDD) provides atomic writes at the sector level (512B - 4KB). If a sector write is partially completed at the physical level, CRC-32 signatures may fail in unexpected ways.
+2.  **Fsync Integrity**: The system relies on the POSIX `fsync` or `fdatasync` system calls to correctly flush the volatile drive cache. If the drive hardware "lies" about persistence to improve benchmark scores, the WAL's durability guarantees are invalidated.
+
 ---
 
 ## 6. Conclusion
