@@ -1,0 +1,7 @@
+# Mark assets and documentation as generated to hide them from the core code diff
+experiments/* linguist-generated=true
+docs/images/* linguist-generated=true
+results/* linguist-generated=true
+*.md linguist-generated=true
+Makefile linguist-generated=true
+comparison.ipynb linguist-generated=true
