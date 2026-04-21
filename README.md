@@ -97,22 +97,22 @@ Individual insights derived from custom instrumentation telemetry.
 Insight: Strict synchronization (fsync) introduces a significant performance floor limited by disk IOPS.
 
 ### Study 2: Header Overhead and Fragmentation
-<img src="./docs/images/exp2_recovery.png" width="400" />
+<img src="./docs/images/exp2_fragmentation.png" width="400" />
 
 Insight: Smaller block sizes increase fragmentation, leading to a higher ratio of header bytes to payload bytes.
 
 ### Study 3: Recovery Mode Comparison
-(Image Placeholder - Reference Section 3.3 of report.md)
+<img src="./docs/images/exp3_recovery_mode.png" width="400" />
 
 Insight: Recovery time scales with the strictness of consistency checks performed during the WAL replay.
 
 ### Study 4: Group Commit Efficiency
-(Image Placeholder - Reference Section 3.4 of report.md)
+<img src="./docs/images/exp4_group_commit.png" width="400" />
 
 Insight: Increased concurrency leverages the leader-follower batching mechanism to amortize synchronization costs.
 
 ### Study 5: Recovery Scaling and MTTR
-<img src="./docs/images/exp5_efficiency.png" width="400" />
+<img src="./docs/images/exp5_scaling.png" width="400" />
 
 Insight: Mean Time To Recovery (MTTR) increases linearly with the volume of uncompressed WAL data.
 
