@@ -449,18 +449,9 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
   // original write is small, limit the growth so we do not slow
   // down the small write too much.
   //
-  // [EXP-4] WriteBatch Group Size — this is the core of the experiment.
-  // max_size caps how many bytes worth of concurrent writers can be merged
-  // into a single WAL record. The min_batch_size_bytes guard means small
-  // writes are never delayed by a factor of more than 2x their own size.
-  //
-  // Instrumentation: g_batch_group_count tracks how many times a group is
-  // formed; g_batch_group_total_size accumulates total merged bytes.
-  // After a workload: average group size = g_batch_group_total_size / g_batch_group_count
-  // Compare this across different max_write_batch_group_size_bytes settings.
   static std::atomic<uint64_t> g_batch_group_count{0};
   static std::atomic<uint64_t> g_batch_group_total_size{0};
-  static std::atomic<uint64_t> g_batch_group_writers{0};  // total writers merged
+  static std::atomic<uint64_t> g_batch_group_writers{0};
   g_batch_group_count.fetch_add(1, std::memory_order_relaxed);
   (void)g_batch_group_count;
   (void)g_batch_group_total_size;
@@ -582,9 +573,6 @@ size_t WriteThread::EnterAsBatchGroupLeader(Writer* leader,
   }
 
   TEST_SYNC_POINT_CALLBACK("WriteThread::EnterAsBatchGroupLeader:End", w);
-  // [EXP-4] Record final merged group size and writer count.
-  // These atomics accumulate across all groups formed during the benchmark run.
-  // Reset them between experiment configurations by restarting the DB process.
   g_batch_group_total_size.fetch_add(size, std::memory_order_relaxed);
   g_batch_group_writers.fetch_add(write_group->size, std::memory_order_relaxed);
   return size;

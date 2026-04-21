@@ -1132,47 +1132,7 @@ Status DBImpl::RecoverLogFiles(const std::vector<uint64_t>& wal_numbers,
                                RecoveryContext* recovery_ctx) {
   mutex_.AssertHeld();
 
-  // [EXP-3] WAL Recovery Mode Experiment
-  //
-  // This function is the entry point for replaying all WAL files on DB open.
-  // It calls ProcessLogFiles() → ProcessLogFile() → log::Reader::ReadRecord()
-  // for each WAL file in sequence-number order.
-  //
-  // The recovery mode (immutable_db_options_.wal_recovery_mode) controls how
-  // corrupted or incomplete records at the WAL tail are handled:
-  //
-  //   kTolerateCorruptedTailRecords (default):
-  //     Ignores corruption only at the LAST record of the LAST WAL.
-  //     Assumes this is a partial write from before the crash.
-  //     → All records before the tail are fully recovered.
-  //
-  //   kAbsoluteConsistency:
-  //     Any corruption → DB refuses to open. Used when you need a guarantee
-  //     that no data was lost. WAL recycling is incompatible with this mode.
-  //
-  //   kPointInTimeRecovery:
-  //     Replays up to the first corruption, then stops. Data after the first
-  //     bad record is discarded, but DB opens successfully.
-  //
-  //   kSkipAnyCorruptedRecords:
-  //     Skips ALL corrupted records anywhere in the WAL. Maximum availability,
-  //     minimum durability guarantee.
-  //
-  // To simulate a crash for Exp 3:
-  //   1. Write N keys with WAL enabled (sync=false, disableWAL=false).
-  //   2. Write M keys with disableWAL=true  → these will be LOST on recovery.
-  //   3. Kill the process without flushing (simulates power loss).
-  //   4. Reopen with each WALRecoveryMode and count recovered keys.
-  //
-  // Expected result:
-  //   - WAL-backed keys: 100% recovered in all modes (CRC32 is intact).
-  //   - disableWAL keys: 0% recovered in all modes (never written to WAL).
-  //   - Recovery time difference reflects how aggressively each mode scans.
-  //
-  // CRC32 check location: log_reader.cc → ReadPhysicalRecord() → crc32c::Unmask()
-  // Record replay location: db_impl_open.cc → ApplyWALToMemTable()
   ROCKS_LOG_INFO(immutable_db_options_.info_log,
-                 "[EXP-3] RecoverLogFiles: %zu WAL file(s) to replay, "
                  "recovery_mode=%d",
                  wal_numbers.size(),
                  static_cast<int>(immutable_db_options_.wal_recovery_mode));
@@ -1283,17 +1243,7 @@ Status DBImpl::ProcessLogFile(
     PredecessorWALInfo& predecessor_wal_info) {
   assert(stop_replay_by_wal_filter);
 
-  // [EXP-3] Log each WAL file as it enters replay.
-  // In the experiment, we compare recovery time across WALRecoveryMode values.
-  // Each WAL file is replayed by:
-  //   1. log::Reader::ReadRecord() → reads one logical record (may span blocks)
-  //   2. ReadPhysicalRecord() → reads one 32KB block, checks CRC32 header
-  //   3. ApplyWALToMemTable() → inserts recovered KV pairs into the memtable
-  //
-  // If CRC32 fails → record type kBadRecordChecksum is returned.
-  // What happens next depends on wal_recovery_mode (see RecoverLogFiles above).
   ROCKS_LOG_INFO(immutable_db_options_.info_log,
-                 "[EXP-3] ProcessLogFile: replaying WAL #%" PRIu64
                  " (min_wal=%" PRIu64 ", recovery_mode=%d)",
                  wal_number, min_wal_number,
                  static_cast<int>(immutable_db_options_.wal_recovery_mode));

@@ -433,7 +433,6 @@ class WriteThread {
   // of WAL or memtable write. It is followed when the leader write size
   // is larger than 1/8 of this limit.
   //
-  // [EXP-4] WriteBatch Group Size Experiment
   // This field is the primary tuning knob for Exp 4.
   // Set via DBOptions::max_write_batch_group_size_bytes at DB open time.
   //

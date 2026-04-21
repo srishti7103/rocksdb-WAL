@@ -20,16 +20,11 @@
 #include "util/crc32c.h"
 #include "util/udt_util.h"
 
-// [EXP-2] [EXP-5] WAL Write Instrumentation
-// These counters are incremented inside EmitPhysicalRecord() and AddRecord().
-// Run with ROCKSDB_WAL_BLOCK_SIZE=<N> to vary block size (Exp 2).
-// For Exp 5 (skew analysis), total_wal_records tracks how key-agnostic the
-// WAL is — the counter should grow at the same rate regardless of key distribution.
 namespace ROCKSDB_NAMESPACE::log {
-std::atomic<uint64_t> g_wal_full_records{0};     // kFullType records written
-std::atomic<uint64_t> g_wal_fragment_records{0}; // kFirst/Middle/Last fragments
-std::atomic<uint64_t> g_wal_bytes_payload{0};    // total payload bytes written
-std::atomic<uint64_t> g_wal_bytes_header{0};     // total header bytes written
+std::atomic<uint64_t> g_wal_full_records{0};
+std::atomic<uint64_t> g_wal_fragment_records{0};
+std::atomic<uint64_t> g_wal_bytes_payload{0};
+std::atomic<uint64_t> g_wal_bytes_header{0};
 }  // namespace ROCKSDB_NAMESPACE::log
 
 namespace ROCKSDB_NAMESPACE::log {
@@ -326,12 +321,6 @@ IOStatus Writer::EmitPhysicalRecord(const WriteOptions& write_options,
                                     RecordType t, const char* ptr, size_t n) {
   assert(n <= 0xffff);  // Must fit in two bytes
 
-  // [EXP-2] [EXP-5] Count fragment types to measure block-boundary splits.
-  // kFullType = record fits in one block (no fragmentation).
-  // kFirstType/kMiddleType/kLastType = record was split across blocks.
-  // For Exp 2: vary kBlockSize and observe g_wal_fragment_records rising.
-  // For Exp 5: g_wal_full_records + g_wal_fragment_records stays flat across
-  // skew levels, proving WAL is key-agnostic (all writes logged regardless).
   if (t == kFullType || t == kRecyclableFullType) {
     g_wal_full_records.fetch_add(1, std::memory_order_relaxed);
   } else {
@@ -367,8 +356,6 @@ IOStatus Writer::EmitPhysicalRecord(const WriteOptions& write_options,
     crc = crc32c::Extend(crc, buf + 7, 4);
   }
 
-  // [EXP-2] Track header overhead bytes. For small values, header is a large
-  // fraction of total WAL bytes written (7B header on 64B payload = 10.9%).
   g_wal_bytes_header.fetch_add(header_size, std::memory_order_relaxed);
 
   // Compute the crc of the record type and the payload.

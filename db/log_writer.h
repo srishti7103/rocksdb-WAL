@@ -30,7 +30,6 @@ class WritableFileWriter;
 
 namespace log {
 
-// [EXP-2] [EXP-5] WAL Write Instrumentation Counters
 // These are incremented in EmitPhysicalRecord() inside log_writer.cc.
 //
 // Usage in experiments:
