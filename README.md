@@ -1,5 +1,6 @@
 # 💎 RocksDB WAL: Engineering Analysis & Instrumentation
 
+[![View Code Changes](https://img.shields.io/badge/🛠️-View_Code_Changes_(Diff)-orange?style=for-the-badge)](https://github.com/srishti7103/rocksdb-WAL/compare/main...wal-experiments)
 [![View Comparison Analysis](https://img.shields.io/badge/🔍-View_Comparison_Notebook-blue?style=for-the-badge)](./analytics/comparison.ipynb)
 [![View Full Report](https://img.shields.io/badge/📄-View_Detailed_Report-green?style=for-the-badge)](./report.md)
 
