@@ -8,3 +8,9 @@ WAL_Recovery,100000,119
 WAL_Recovery,500000,540
 WAL_Bytes_Header,1000000,7000000
 WAL_Bytes_Payload,1000000,256000000
+WAL_Recovery_Mode,AbsoluteConsistency,1242
+WAL_Recovery_Mode,PointInTime,142
+WAL_Recovery_Mode,TolerateCorrupted,88
+WAL_Group_Commit,1,1200
+WAL_Group_Commit,4,5500
+WAL_Group_Commit,8,9200
