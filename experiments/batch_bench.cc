@@ -1,0 +1,41 @@
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <chrono>
+#include "rocksdb/db.h"
+
+using namespace ROCKSDB_NAMESPACE;
+
+void WriterThread(DB* db, int id, int num_ops) {
+    WriteOptions wo;
+    for (int i = 0; i < num_ops; i++) {
+        db->Put(wo, "thread" + std::to_string(id) + "_key" + std::to_string(i), "val");
+    }
+}
+
+int main() {
+    std::string kDBPath = "/tmp/rocksdb_batch_bench";
+    DB* db;
+    Options options;
+    options.create_if_missing = true;
+    DB::Open(options, kDBPath, &db);
+
+    const int kThreads = 4;
+    const int kOpsPerThread = 5000;
+    
+    std::cout << "Starting Group Commit Benchmark with " << kThreads << " threads..." << std::endl;
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    std::vector<std::thread> threads;
+    for (int i = 0; i < kThreads; i++) {
+        threads.emplace_back(WriterThread, db, i, kOpsPerThread);
+    }
+    for (auto& t : threads) t.join();
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Total Throughput: " << (kThreads * kOpsPerThread) / elapsed.count() << " ops/s" << std::endl;
+
+    delete db;
+    return 0;
+}
