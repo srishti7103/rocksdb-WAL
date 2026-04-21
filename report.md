@@ -90,11 +90,17 @@ We addressed the following two failure scenarios as part of our analysis:
 
 ### 5.1 Scenario A: Significant Increase in Data Size
 **The Problem**: How does the system behave as the WAL volume grows?
-**Findings (Study 5)**: We observed that WAL replay performance exhibits **Linear Complexity ($O(n)$)**. If the WAL grows significantly without checkpointing, the MTTR increases linearly, potentially violating availability SLAs.
+**Findings (Study 5)**:
+![Recovery Scaling Analysis](./docs/images/exp5_scaling.png)
+
+We observed that WAL replay performance exhibits **Linear Complexity ($O(n)$)**. If the WAL grows significantly without checkpointing, the MTTR increases linearly, potentially violating availability SLAs.
 
 ### 5.2 Scenario B: Component Failure (Crash Consistency)
 **The Problem**: What happens if the system fails mid-write?
-**Findings (Section 8)**: RocksDB handles this through **Torn Write Detection**. The WAL replayer (Study 3) identifies records with missing "Last" fragments or mismatched CRC-32 signatures and discards them, ensuring the system never recovers into a partially-written, inconsistent state.
+**Findings (Study 3)**:
+![Recovery Mode Performance](./docs/images/exp3_recovery_mode.png)
+
+RocksDB handles this through **Torn Write Detection**. The WAL replayer (Study 3) identifies records with missing "Last" fragments or mismatched CRC-32 signatures and discards them, ensuring the system never recovers into a partially-written, inconsistent state. By adopting faster recovery modes, we observed a **14x reduction** in MTTR.
 
 ---
 
