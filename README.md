@@ -1,83 +1,84 @@
-# 💎 RocksDB WAL: Engineering Analysis & Instrumentation
+# RocksDB Write-Ahead Log (WAL) Analysis and Instrumentation
 
-[![View Code Changes](https://img.shields.io/badge/🛠️-View_Code_Changes_(GitHub_Diff)-orange?style=for-the-badge&logo=github)](https://github.com/srishti7103/rocksdb-WAL/compare/main...wal-experiments)
+This project involves the deep instrumentation and technical analysis of the RocksDB Write-Ahead Log (WAL), focusing on the critical tradeoff between persistence durability and write performance. It was developed to explore how sequential I/O, record fragmentation, and group commit logic impact the overall ingestion efficiency of a high-performance key-value store.
 
-This project reverse-engineers and instruments the **RocksDB Write-Ahead Log (WAL)** to analyze the fundamental tradeoffs between data persistence guarantees and write throughput. Developed as a final project for **DS614 Systems Engineering**.
-
----
-
-## 📑 Quick Access: Core Instrumentation
-Explore the surgically modified files featuring atomic telemetry for performance tracking:
-
-| Component | File Link | Instrumentation Focus |
-| :--- | :--- | :--- |
-| **Write Path** | [`db_impl_write.cc`](./db/db_impl/db_impl_write.cc) | Sync-mode telemetry (Strict vs. Buffered) |
-| **Log Writer** | [`log_writer.cc`](./db/log_writer.cc) | Fragmentation & Header Overhead tracking |
-| **Batching** | [`write_thread.cc`](./db/write_thread.cc) | Group Commit efficiency metrics |
-| **Recovery** | [`db_impl_open.cc`](./db/db_impl/db_impl_open.cc) | Startup MTTR & Replay telemetry |
-| **Checksums** | [`log_reader.cc`](./db/log_reader.cc) | Corruption detection & CRC mismatch counters |
+## Comparison and Code Changes
+[View Code Changes (GitHub Diff)](https://github.com/srishti7103/rocksdb-WAL/compare/main...wal-experiments)
 
 ---
 
-## 🛠 What is Being Changed?
-We have injected `std::atomic` counters into the core I/O path to capture high-resolution metrics without degrading system performance:
-*   **Safety Tax Tracking**: Distinguishing between `fsync()`-heavy synchronous writes and OS-buffered writes.
-*   **Record Integrity**: Monitoring record fragmentation when user payloads exceed the configurable `ROCKSDB_WAL_BLOCK_SIZE`.
-*   **Batching Efficiency**: Measuring the average "Group Size" during high-concurrency write operations.
+## Technical Overview: What is RocksDB WAL?
+The Write-Ahead Log (WAL) is the fundamental durability component of RocksDB. Every write operation (Put, Merge, Delete) is appended to the WAL before being inserted into the MemTable. This ensures that in the event of a crash, the database can reconstruct the in-memory state by replaying the log. 
+
+Our instrumentation targets the core execution path to capture:
+*   Ratio of fsync() calls to logical writes (Performance Tax).
+*   Record splitting and header overhead (Fragmentation).
+*   Batch grouping efficiency during heavy contention.
 
 ---
 
-## 🚀 How to Run (WSL / Ubuntu)
+## Folder Structure
+Focused overview of edited and newly added components:
 
-### 1. Prerequisites
-Ensure your Linux environment has the standard RocksDB build dependencies:
-```bash
-sudo apt-get update
-sudo apt-get install build-essential libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
 ```
-
-### 2. Build the Library
-Compile the instrumented RocksDB static library:
-```bash
-make static_lib -j$(nproc)
-```
-
-### 3. Run the Benchmark Suite
-The project includes a dedicated `experiments/` folder with standalone drivers for all 5 studies:
-```bash
-cd experiments
-make
-./sync_bench      # Study 1
-./fragment_bench  # Study 2
-./recovery_bench  # Study 3
-./batch_bench     # Study 4
-./skew_bench      # Study 5
+.
+├── db/                             [Core Source Code]
+│   ├── log_writer.cc               (Modified: Record telemetry)
+│   ├── log_reader.cc               (Modified: Recovery telemetry)
+│   ├── write_thread.cc             (Modified: Batching telemetry)
+│   ├── log_format.h                (Modified: Configurable block logic)
+│   └── db_impl/
+│       ├── db_impl_write.cc        (Modified: Sync-mode tracking)
+│       └── db_impl_open.cc         (Modified: Recovery timing)
+├── experiments/                    [New: Benchmark Suite]
+│   ├── Makefile                    (Automated build system)
+│   ├── sync_bench.cc               (Study 1: Performance vs Durability)
+│   ├── fragment_bench.cc           (Study 2: Overhead Analysis)
+│   ├── recovery_bench.cc           (Study 3: Consistency Modes)
+│   ├── batch_bench.cc              (Study 4: Concurrent Writing)
+│   └── skew_bench.cc               (Study 5: MTTR Scaling)
+├── report.md                       [Systems Engineering Report]
+└── README.md                       [Technical Overview]
 ```
 
 ---
 
-## 📊 Experimental Results
-The following charts represent the telemetry gathered through our custom instrumentation. For a full analysis, refer to the **[Engineering Report](./report.md)**.
-
-### Study 1: The "Safety Tax" (Throughput)
-![Study 1: Throughput](./docs/images/exp1_throughput.png)
-
-### Study 2: Fragmentation & Header Overhead
-![Study 2: Recovery](./docs/images/exp2_recovery.png)
-
-### Study 5: Recovery Scaling (MTTR)
-![Study 5: Efficiency](./docs/images/exp5_efficiency.png)
-
-> [!NOTE]
-> *For detailed technical deep-dives into Studies 3 and 4, please see sections 3.3 and 3.4 of the Engineering Report.*
+## Quick Access: Instrumented Files
+*   [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
+*   [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
+*   [db/write_thread.cc](./db/write_thread.cc): Group commit efficiency logic.
+*   [db/db_impl/db_impl_open.cc](./db/db_impl/db_impl_open.cc): Startup telemetry and recovery path.
+*   [db/log_reader.cc](./db/log_reader.cc): CRC32 failure and corruption detection.
 
 ---
 
-## 👥 Credits
-*   **Team**: Sigma & Spark
-*   **Lead Engineer**: Srishti
-*   **Contributors**: [Member Name 1], [Member Name 2]
-*   **Institution**: DS614 - Systems Engineering
+## How to Run in WSL/Ubuntu
+1. Install build dependencies: `sudo apt-get install build-essential libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev`
+2. Compile the static library: `make static_lib -j$(nproc)`
+3. Enter benchmark suite: `cd experiments && make`
+4. Execute studies: `./sync_bench`, `./fragment_bench`, `./recovery_bench`, `./batch_bench`, `./skew_bench`
 
 ---
-*This fork is maintained for academic research into persistent storage engine architectures.*
+
+## Experimental Analysis
+Individual insights derived from custom instrumentation telemetry.
+
+### Study 1: Performance Tax of Durability
+<img src="./docs/images/exp1_throughput.png" width="400" />
+**Insight**: Strict synchronization (fsync) introduces a significant performance floor limited by disk IOPS.
+
+### Study 2: Header Overhead and Fragmentation
+<img src="./docs/images/exp2_recovery.png" width="400" />
+**Insight**: Smaller block sizes increase fragmentation, leading to a higher ratio of header bytes to payload bytes.
+
+### Study 3: Recovery Mode Comparison
+(Image Placeholder - Reference Section 3.3 of report.md)
+**Insight**: Recovery time scales with the strictness of consistency checks performed during the WAL replay.
+
+### Study 4: Group Commit Efficiency
+(Image Placeholder - Reference Section 3.4 of report.md)
+**Insight**: Increased concurrency leverages the leader-follower batching mechanism to amortize synchronization costs.
+
+### Study 5: Recovery Scaling and MTTR
+<img src="./docs/images/exp5_efficiency.png" width="400" />
+**Insight**: Mean Time To Recovery (MTTR) increases linearly with the volume of uncompressed WAL data.
