@@ -1,7 +1,6 @@
 # RocksDB Write-Ahead Log (WAL) Analysis and Instrumentation
 
 [![View Code Changes](https://img.shields.io/badge/View_Code_Changes_(GitHub_Diff)-orange?style=for-the-badge&logo=github)](https://github.com/srishti7103/rocksdb-WAL/compare/main...wal-experiments)
-[![View Data Verification](https://img.shields.io/badge/View_Data_Verification_(Notebook)-blue?style=for-the-badge&logo=jupyter)](./comparison.ipynb)
 
 This project involves the deep instrumentation and technical analysis of the RocksDB Write-Ahead Log (WAL), focusing on the critical tradeoff between persistence durability and write performance. It was developed to explore how sequential I/O, record fragmentation, and group commit logic impact the overall ingestion efficiency of a high-performance key-value store.
 
@@ -131,5 +130,15 @@ Quantitative breakdown of instrumentation changes across the core RocksDB system
 | `db/db_impl/db_impl_open.cc` | 10 | 0 | Recovery path timing and telemetry |
 | `db/log_reader.cc` | 5 | 0 | CRC mismatch and corruption detection |
 | `db/log_format.h` | 4 | 0 | Configurable block-level macro logic |
+
+
+## Credits
+Built by **Sigma & Spark**: where B.Sc. Statistics meets Leveled Sparks 
+
+**Srishti Lamba**: 202518003 
+*Catching quirks which others miss*
+
+**Nikita Sharma**: 202518038
+*If disciplining data was a task*
 
 ---
