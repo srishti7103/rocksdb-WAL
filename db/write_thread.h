@@ -432,6 +432,26 @@ class WriteThread {
   // The maximum limit of number of bytes that are written in a single batch
   // of WAL or memtable write. It is followed when the leader write size
   // is larger than 1/8 of this limit.
+  //
+  // [EXP-4] WriteBatch Group Size Experiment
+  // This field is the primary tuning knob for Exp 4.
+  // Set via DBOptions::max_write_batch_group_size_bytes at DB open time.
+  //
+  // Larger value → more concurrent writers merged into one WAL AddRecord() call
+  //              → lower per-key WAL header overhead → higher throughput
+  //              → but one straggler writer stalls the whole group (head-of-line)
+  // Smaller value → each writer gets its own WAL record → lower throughput
+  //              → lower tail latency, writers not blocked by slow peers
+  //
+  // To run Exp 4, open DB with different values:
+  //   options.max_write_batch_group_size_bytes = 1024;      // tiny groups
+  //   options.max_write_batch_group_size_bytes = 1 << 16;   // 64KB (default)
+  //   options.max_write_batch_group_size_bytes = 1 << 20;   // 1MB
+  //   options.max_write_batch_group_size_bytes = 1 << 24;   // 16MB (very large)
+  //
+  // Measure: throughput (ops/s), p50/p99 latency, WAL AddRecord() call count.
+  // Code path: EnterAsBatchGroupLeader() → size check → WriteGroupToWAL()
+  //            in db_impl_write.cc → single AddRecord() call per merged group.
   const uint64_t max_write_batch_group_size_bytes;
 
   // Points to the newest pending writer. Only leader can remove

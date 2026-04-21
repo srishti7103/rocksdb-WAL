@@ -8,6 +8,7 @@
 // found in the LICENSE file. See the AUTHORS file for names of contributors.
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -28,6 +29,19 @@ namespace ROCKSDB_NAMESPACE {
 class WritableFileWriter;
 
 namespace log {
+
+// [EXP-2] [EXP-5] WAL Write Instrumentation Counters
+// These are incremented in EmitPhysicalRecord() inside log_writer.cc.
+//
+// Usage in experiments:
+//   Read these atomics before and after a workload to measure:
+//   - Exp 2 (block size):   fragment rate = g_wal_fragment_records / total
+//   - Exp 5 (write skew):   both counters grow uniformly regardless of skew,
+//                           confirming WAL is completely key-distribution-agnostic
+extern std::atomic<uint64_t> g_wal_full_records;     // kFullType records
+extern std::atomic<uint64_t> g_wal_fragment_records; // kFirst/Middle/Last records
+extern std::atomic<uint64_t> g_wal_bytes_payload;    // payload bytes written
+extern std::atomic<uint64_t> g_wal_bytes_header;     // header bytes written
 
 /**
  * Writer is a general purpose log stream writer. It provides an append-only

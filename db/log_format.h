@@ -51,7 +51,23 @@ enum RecordType : uint8_t {
 constexpr uint8_t kRecordTypeSafeIgnoreMask = 1 << 7;
 constexpr uint8_t kMaxRecordType = kRecyclePredecessorWALInfoType;
 
+// [EXP-2] WAL Block Size Experiment
+// Default: 32768 (32KB). Override at compile time with:
+//   -DROCKSDB_WAL_BLOCK_SIZE=4096   (small blocks → more fragmentation, high header overhead)
+//   -DROCKSDB_WAL_BLOCK_SIZE=32768  (default → baseline)
+//   -DROCKSDB_WAL_BLOCK_SIZE=65536  (large blocks → less fragmentation, higher memory per read)
+//
+// Design decision being tested:
+//   Fixed block size means records larger than kBlockSize must be split into
+//   kFirstType/kMiddleType/kLastType fragments. Smaller blocks = more fragments
+//   and higher header overhead per byte. Larger blocks = fewer fragments but
+//   more wasted space when a block is only partially filled.
+//   See: log_writer.cc → AddRecord(), log_reader.cc → ReadPhysicalRecord()
+#ifdef ROCKSDB_WAL_BLOCK_SIZE
+constexpr unsigned int kBlockSize = ROCKSDB_WAL_BLOCK_SIZE;
+#else
 constexpr unsigned int kBlockSize = 32768;
+#endif  // ROCKSDB_WAL_BLOCK_SIZE
 
 // Header is checksum (4 bytes), length (2 bytes), type (1 byte)
 constexpr int kHeaderSize = 4 + 2 + 1;

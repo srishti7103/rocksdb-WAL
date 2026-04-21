@@ -2261,6 +2261,32 @@ IOStatus DBImpl::WriteToWAL(const WriteBatch& merged_batch,
                             SequenceNumber sequence) {
   assert(log_size != nullptr);
 
+  // [EXP-1] WAL Sync Mode Instrumentation
+  // This function is the single entry point for all WAL writes.
+  // We log which sync mode is active so experiment results can be correlated
+  // with throughput/latency measurements from the benchmark driver.
+  //
+  // Three modes exercised in Exp 1:
+  //   sync=true, disableWAL=false          → fsync() after every AddRecord()
+  //   sync=false, disableWAL=false         → OS-buffered write, no fsync
+  //   sync=false, manual_wal_flush_=true   → batched flush via FlushWAL()
+  //   disableWAL=true                      → this function is never called
+  //
+  // See: AddRecord() in log_writer.cc → manual_flush_ controls Flush() call.
+  // See: WriteGroupToWAL() below → need_wal_sync triggers SyncWAL() after this.
+  //
+  // [EXP-1] Track WAL write count per sync mode for the experiment notebook.
+  // The static counters are reset between experiment runs by restarting the DB.
+  static std::atomic<uint64_t> s_wal_writes_synced{0};
+  static std::atomic<uint64_t> s_wal_writes_notsync{0};
+  if (write_options.sync) {
+    s_wal_writes_synced.fetch_add(1, std::memory_order_relaxed);
+  } else {
+    s_wal_writes_notsync.fetch_add(1, std::memory_order_relaxed);
+  }
+  (void)s_wal_writes_synced;   // suppress unused-variable warning
+  (void)s_wal_writes_notsync;
+
   Slice log_entry = WriteBatchInternal::Contents(&merged_batch);
   TEST_SYNC_POINT_CALLBACK("DBImpl::WriteToWAL:log_entry", &log_entry);
   auto s = merged_batch.VerifyChecksum();

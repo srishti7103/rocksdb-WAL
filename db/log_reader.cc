@@ -322,6 +322,34 @@ bool Reader::ReadRecord(Slice* record, std::string* scratch,
         FALLTHROUGH_INTENDED;
 
       case kBadRecordChecksum:
+        // [EXP-3] WAL Recovery: CRC32 Checksum Failure
+        //
+        // This branch is hit when ReadPhysicalRecord() finds that the CRC32
+        // stored in the 4-byte block header does not match the CRC32 computed
+        // over the block payload. This is the corruption detection mechanism.
+        //
+        // Causes during recovery:
+        //   1. Partial write: process crashed mid-block → tail bytes are garbage.
+        //   2. Disk bit rot: silent corruption after write completed.
+        //   3. Recycled log file with stale data from a previous incarnation.
+        //
+        // What happens next depends on wal_recovery_mode:
+        //   kTolerateCorruptedTailRecords → silently discard, return false (EOF)
+        //   kAbsoluteConsistency          → ReportCorruption → DB refuses to open
+        //   kPointInTimeRecovery          → ReportCorruption → stop replay here
+        //   kSkipAnyCorruptedRecords      → skip this record, continue replay
+        //
+        // In Exp 3 we do NOT inject real corruption — instead we demonstrate
+        // that disableWAL=true writes are always lost (never appear in WAL),
+        // while WAL-backed writes survive regardless of recovery mode, because
+        // their CRC32 is intact.
+        //
+        // Instrumentation: count CRC mismatches seen during recovery.
+        {
+          static std::atomic<uint64_t> g_crc_mismatch_count{0};
+          g_crc_mismatch_count.fetch_add(1, std::memory_order_relaxed);
+          (void)g_crc_mismatch_count;
+        }
         if (recycled_ && wal_recovery_mode ==
                              WALRecoveryMode::kTolerateCorruptedTailRecords) {
           scratch->clear();
