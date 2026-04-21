@@ -1,10 +1,5 @@
 # Systems Engineering Analysis: Write-Ahead Log Instrumentation in RocksDB
 
-**Author**: Srishti  
-**Date**: April 21, 2026  
-**Subject**: DS614 High-Performance Storage Systems  
-**Affiliation**: Systems Engineering Research Group  
-
 ---
 
 ## Abstract
