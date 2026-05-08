@@ -2,6 +2,7 @@
 #include <vector>
 #include <thread>
 #include <chrono>
+#include <memory>
 #include "rocksdb/db.h"
 
 using namespace ROCKSDB_NAMESPACE;
@@ -15,7 +16,7 @@ void WriterThread(DB* db, int id, int num_ops) {
 
 int main() {
     std::string kDBPath = "/tmp/rocksdb_batch_bench";
-    DB* db;
+    std::unique_ptr<DB> db;
     Options options;
     options.create_if_missing = true;
     DB::Open(options, kDBPath, &db);
@@ -28,7 +29,7 @@ int main() {
     
     std::vector<std::thread> threads;
     for (int i = 0; i < kThreads; i++) {
-        threads.emplace_back(WriterThread, db, i, kOpsPerThread);
+        threads.emplace_back(WriterThread, db.get(), i, kOpsPerThread);
     }
     for (auto& t : threads) t.join();
 
@@ -36,6 +37,5 @@ int main() {
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Total Throughput: " << (kThreads * kOpsPerThread) / elapsed.count() << " ops/s" << std::endl;
 
-    delete db;
     return 0;
 }

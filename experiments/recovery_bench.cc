@@ -1,5 +1,6 @@
 #include <iostream>
 #include <chrono>
+#include <memory>
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 
@@ -7,7 +8,7 @@ using namespace ROCKSDB_NAMESPACE;
 
 int main() {
     std::string kDBPath = "/tmp/rocksdb_recovery_bench";
-    DB* db;
+    std::unique_ptr<DB> db;
     Options options;
     options.create_if_missing = true;
     
@@ -16,7 +17,7 @@ int main() {
     for (int i = 0; i < 1000; i++) {
         db->Put(WriteOptions(), "rec_key" + std::to_string(i), "val");
     }
-    delete db; // Simulate "unclean" shutdown by just closing without flush
+    db.reset(); // Close DB (simulate "unclean" shutdown)
 
     // 2. Test Recovery Mode: Absolute Consistency
     options.wal_recovery_mode = WALRecoveryMode::kAbsoluteConsistency;
@@ -25,7 +26,7 @@ int main() {
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> elapsed = end - start;
     std::cout << "Recovery (kAbsoluteConsistency): " << elapsed.count() << " ms" << std::endl;
-    delete db;
+    db.reset();
 
     // 3. Test Recovery Mode: Point In Time
     options.wal_recovery_mode = WALRecoveryMode::kPointInTimeRecovery;
@@ -35,6 +36,5 @@ int main() {
     elapsed = end - start;
     std::cout << "Recovery (kPointInTimeRecovery): " << elapsed.count() << " ms" << std::endl;
     
-    delete db;
     return 0;
 }

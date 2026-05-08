@@ -57,26 +57,51 @@ Focused overview of edited and newly added components:
 
 ---
 
-## How to Run in WSL/Ubuntu
+## How to Run on Ubuntu / WSL
 
-1. Install build dependencies:
+> **Important:** If using WSL (Windows Subsystem for Linux), clone the repo inside the Linux filesystem (`~/`), **not** on `/mnt/c/...`. Building on `/mnt/c/` is extremely slow and often fails.
+
+### Step 1: Install Dependencies
+
 ```bash
 sudo apt-get update
-sudo apt-get install build-essential libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev
+sudo apt-get install -y build-essential libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev libgflags-dev g++
 ```
 
-2. Compile the static library:
+### Step 2: Clone and Checkout
+
+```bash
+cd ~
+git clone https://github.com/srishti7103/rocksdb-WAL.git
+cd rocksdb-WAL
+git checkout wal-experiments
+```
+
+### Step 3: Fix Line Endings (Required if Cloned on Windows)
+
+If you originally cloned on Windows or see `bash\r` errors, run:
+```bash
+find . -name "*.sh" -exec sed -i 's/\r$//' {} \;
+find build_tools -type f -exec sed -i 's/\r$//' {} \;
+sed -i 's/\r$//' Makefile
+```
+
+### Step 4: Build RocksDB Static Library
+
 ```bash
 make static_lib -j$(nproc)
 ```
 
-3. Enter benchmark suite and compile:
+> This compiles the full RocksDB library. It takes **10–30 minutes** depending on your machine. You should see `CC` lines scrolling as files compile. If using WSL with limited RAM, use `make static_lib -j2` instead.
+
+### Step 5: Build and Run Experiments
+
 ```bash
 cd experiments
 make
 ```
 
-4. Execute studies:
+Then run any of the five studies:
 ```bash
 ./sync_bench
 ./fragment_bench
@@ -84,6 +109,18 @@ make
 ./batch_bench
 ./skew_bench
 ```
+
+Each benchmark writes CSV output to the current directory for analysis.
+
+### Troubleshooting
+
+| Problem | Solution |
+|:---|:---|
+| `bash\r: No such file or directory` | Run Step 3 to fix Windows line endings |
+| `make_config.mk: No such file or directory` | Run Step 3, then `make clean` and rebuild |
+| Build hangs with no `CC` output | You're on `/mnt/c/`. Clone inside `~/` instead (Step 2) |
+| `g++: No such file or directory` | Run `sudo apt-get install -y build-essential g++` |
+| `No rule to make target 'static_lib'` | Run `git checkout wal-experiments` — you're on the wrong branch |
 
 ---
 

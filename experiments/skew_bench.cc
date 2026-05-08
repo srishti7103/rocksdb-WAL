@@ -1,12 +1,13 @@
 #include <iostream>
 #include <chrono>
+#include <memory>
 #include "rocksdb/db.h"
 
 using namespace ROCKSDB_NAMESPACE;
 
 int main() {
     std::string kDBPath = "/tmp/rocksdb_skew_bench";
-    DB* db;
+    std::unique_ptr<DB> db;
     Options options;
     options.create_if_missing = true;
     
@@ -16,7 +17,7 @@ int main() {
     for (int i = 0; i < 100000; i++) {
         db->Put(WriteOptions(), "key" + std::to_string(i), "value");
     }
-    delete db; // Shutdown without flush
+    db.reset(); // Shutdown without flush
 
     // 2. Measure Recovery Time
     std::cout << "Measuring MTTR (Mean Time To Recovery)..." << std::endl;
@@ -27,6 +28,5 @@ int main() {
     std::chrono::duration<double, std::milli> elapsed = end - start;
     std::cout << "MTTR for 100k items: " << elapsed.count() << " ms" << std::endl;
 
-    delete db;
     return 0;
 }

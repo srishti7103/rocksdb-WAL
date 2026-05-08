@@ -1133,7 +1133,7 @@ Status DBImpl::RecoverLogFiles(const std::vector<uint64_t>& wal_numbers,
   mutex_.AssertHeld();
 
   ROCKS_LOG_INFO(immutable_db_options_.info_log,
-                 "recovery_mode=%d",
+                 "wal_count=%zu, recovery_mode=%d",
                  wal_numbers.size(),
                  static_cast<int>(immutable_db_options_.wal_recovery_mode));
 
@@ -1244,7 +1244,7 @@ Status DBImpl::ProcessLogFile(
   assert(stop_replay_by_wal_filter);
 
   ROCKS_LOG_INFO(immutable_db_options_.info_log,
-                 " (min_wal=%" PRIu64 ", recovery_mode=%d)",
+                 "Processing log #%" PRIu64 " (min_wal=%" PRIu64 ", recovery_mode=%d)",
                  wal_number, min_wal_number,
                  static_cast<int>(immutable_db_options_.wal_recovery_mode));
 

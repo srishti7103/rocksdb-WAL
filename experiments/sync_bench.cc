@@ -1,6 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include <atomic>
+#include <memory>
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 
@@ -14,7 +15,7 @@ using namespace ROCKSDB_NAMESPACE;
 
 int main(int argc, char** argv) {
     std::string kDBPath = "/tmp/rocksdb_sync_bench";
-    DB* db;
+    std::unique_ptr<DB> db;
     Options options;
     options.create_if_missing = true;
     
@@ -47,6 +48,5 @@ int main(int argc, char** argv) {
     elapsed = end - start;
     std::cout << "Strict Sync Mode: " << kNumIterations / elapsed.count() << " ops/s" << std::endl;
 
-    delete db;
     return 0;
 }
