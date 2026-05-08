@@ -57,6 +57,9 @@ int main(int argc, char** argv) {
     csv << "WAL_Batch,3," << sync_ops << "\n";
     csv.close();
 
-    std::cout << "Sync benchmark complete." << std::endl;
+    std::cout << " -> Buffered Mode: " << buffered_ops << " ops/s" << std::endl;
+    std::cout << " -> No-WAL Mode:   " << nowal_ops << " ops/s" << std::endl;
+    std::cout << " -> Strict Sync:   " << sync_ops << " ops/s" << std::endl;
+    std::cout << "Sync benchmark complete.\n" << std::endl;
     return 0;
 }

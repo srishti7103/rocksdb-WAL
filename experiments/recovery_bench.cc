@@ -48,6 +48,10 @@ int main() {
     csv << "WAL_Recovery_Mode,TolerateCorrupted," << tol_ms << "\n";
     
     csv.close();
-    std::cout << "Recovery benchmark complete." << std::endl;
+    
+    std::cout << " -> Absolute Consistency: " << abs_ms << " ms" << std::endl;
+    std::cout << " -> Point In Time:        " << pit_ms << " ms" << std::endl;
+    std::cout << " -> Tolerate Corrupted:   " << tol_ms << " ms" << std::endl;
+    std::cout << "Recovery benchmark complete.\n" << std::endl;
     return 0;
 }

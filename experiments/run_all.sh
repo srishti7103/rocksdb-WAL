@@ -47,10 +47,10 @@ echo "Regenerating graphs in comparison.ipynb..."
 cd ..
 
 # Ensure python dependencies are installed
-pip install jupyter pandas matplotlib seaborn > /dev/null 2>&1
+python3 -m pip install jupyter pandas matplotlib seaborn > /dev/null 2>&1
 
 # Execute notebook inplace to update outputs
-jupyter nbconvert --to notebook --execute comparison.ipynb --inplace
+python3 -m jupyter nbconvert --to notebook --execute comparison.ipynb --inplace
 
 echo "========================================================="
 echo "SUCCESS: Everything is ready for the professor."

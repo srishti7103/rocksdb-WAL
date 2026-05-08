@@ -38,9 +38,11 @@ int main() {
         std::chrono::duration<double> elapsed = end - start;
         int tput = (kThreads * kOpsPerThread) / elapsed.count();
         csv << "WAL_Group_Commit," << kThreads << "," << tput << "\n";
+        
+        std::cout << " -> Threads: " << kThreads << " | Throughput: " << tput << " ops/s" << std::endl;
     }
 
     csv.close();
-    std::cout << "Batch benchmark complete." << std::endl;
+    std::cout << "Batch benchmark complete.\n" << std::endl;
     return 0;
 }

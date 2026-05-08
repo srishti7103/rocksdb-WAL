@@ -40,6 +40,9 @@ int main() {
     csv << "WAL_Bytes_Payload," << ops << "," << payload << "\n";
     csv.close();
 
-    std::cout << "Fragment benchmark complete." << std::endl;
+    std::cout << " -> Total Operations: " << ops << std::endl;
+    std::cout << " -> Header Bytes Wasted: " << header << " bytes" << std::endl;
+    std::cout << " -> Payload Bytes Written: " << payload << " bytes" << std::endl;
+    std::cout << "Fragment benchmark complete.\n" << std::endl;
     return 0;
 }

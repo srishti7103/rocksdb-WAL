@@ -30,9 +30,11 @@ int main() {
         
         int ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
         csv << "WAL_Recovery," << vol << "," << ms << "\n";
+        
+        std::cout << " -> Recovering " << vol << " items took: " << ms << " ms" << std::endl;
     }
 
     csv.close();
-    std::cout << "Skew benchmark complete." << std::endl;
+    std::cout << "Skew benchmark complete.\n" << std::endl;
     return 0;
 }
