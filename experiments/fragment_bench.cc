@@ -2,10 +2,10 @@
 #include <chrono>
 #include <atomic>
 #include <memory>
+#include <fstream>
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 
-// External counters from instrumented log_writer.cc
 namespace ROCKSDB_NAMESPACE {
 namespace log {
   extern std::atomic<uint64_t> g_wal_fragment_records;
@@ -25,15 +25,21 @@ int main() {
     if (!s.ok()) return 1;
 
     WriteOptions write_options;
-    // Insert a very large record (128KB) to force fragmentation
-    // Default block size is 32KB, so this will be split into >= 4 fragments
     std::string large_value(128 * 1024, 'a');
     
-    std::cout << "Starting Fragmentation Benchmark..." << std::endl;
-    db->Put(write_options, "large_key", large_value);
+    int ops = 5000;
+    for(int i=0; i<ops; i++) {
+        db->Put(write_options, "key" + std::to_string(i), large_value);
+    }
 
-    std::cout << "Fragmented Records Tracked: " << log::g_wal_fragment_records.load() << std::endl;
-    std::cout << "Total Header Overhead (bytes): " << log::g_wal_bytes_header.load() << std::endl;
+    uint64_t header = log::g_wal_bytes_header.load();
+    uint64_t payload = ops * 128 * 1024;
 
+    std::ofstream csv("../results/wal_performance_telemetry.csv", std::ios_base::app);
+    csv << "WAL_Bytes_Header," << ops << "," << header << "\n";
+    csv << "WAL_Bytes_Payload," << ops << "," << payload << "\n";
+    csv.close();
+
+    std::cout << "Fragment benchmark complete." << std::endl;
     return 0;
 }

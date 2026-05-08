@@ -1,6 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include <memory>
+#include <fstream>
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 
@@ -12,29 +13,41 @@ int main() {
     Options options;
     options.create_if_missing = true;
     
-    // 1. Initial Load
     DB::Open(options, kDBPath, &db);
-    for (int i = 0; i < 1000; i++) {
+    for (int i = 0; i < 10000; i++) {
         db->Put(WriteOptions(), "rec_key" + std::to_string(i), "val");
     }
-    db.reset(); // Close DB (simulate "unclean" shutdown)
+    db.reset(); 
 
-    // 2. Test Recovery Mode: Absolute Consistency
+    std::ofstream csv("../results/wal_performance_telemetry.csv", std::ios_base::app);
+
+    // Absolute
     options.wal_recovery_mode = WALRecoveryMode::kAbsoluteConsistency;
     auto start = std::chrono::high_resolution_clock::now();
     DB::Open(options, kDBPath, &db);
     auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> elapsed = end - start;
-    std::cout << "Recovery (kAbsoluteConsistency): " << elapsed.count() << " ms" << std::endl;
+    int abs_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    csv << "WAL_Recovery_Mode,AbsoluteConsistency," << abs_ms << "\n";
     db.reset();
 
-    // 3. Test Recovery Mode: Point In Time
+    // Point in time
     options.wal_recovery_mode = WALRecoveryMode::kPointInTimeRecovery;
     start = std::chrono::high_resolution_clock::now();
     DB::Open(options, kDBPath, &db);
     end = std::chrono::high_resolution_clock::now();
-    elapsed = end - start;
-    std::cout << "Recovery (kPointInTimeRecovery): " << elapsed.count() << " ms" << std::endl;
+    int pit_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    csv << "WAL_Recovery_Mode,PointInTime," << pit_ms << "\n";
+    db.reset();
+
+    // Tolerate
+    options.wal_recovery_mode = WALRecoveryMode::kTolerateCorruptedTailRecords;
+    start = std::chrono::high_resolution_clock::now();
+    DB::Open(options, kDBPath, &db);
+    end = std::chrono::high_resolution_clock::now();
+    int tol_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    csv << "WAL_Recovery_Mode,TolerateCorrupted," << tol_ms << "\n";
     
+    csv.close();
+    std::cout << "Recovery benchmark complete." << std::endl;
     return 0;
 }

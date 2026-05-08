@@ -37,11 +37,12 @@ The path utilizes the following primary functions/files:
 ---
 
 ## 2. Concept Mapping
-We mapped the RocksDB WAL subsystem to four core systems engineering concepts:
+We mapped the RocksDB WAL subsystem to five core systems engineering concepts:
 1.  **Storage Architecture (LSM-tree)**: RocksDB utilizes a Log-Structured Merge-tree where the WAL provides the mandatory durability layer for volatile memtables.
 2.  **Reliability & Fault Tolerance**: Utilizing CRC-32C checksums and recovery modes to ensure data integrity after unexpected power loss.
 3.  **Data Ingestion & Streaming**: Analyzing the ingestion pipeline through Group Commit batching.
 4.  **Performance Metrics (Throughput vs. Latency)**: Measuring the "Safety Tax" on I/O operations through quantitative benchmarking.
+5.  **Partitioning / Data Lifecycle**: WAL rotation (`SwitchWAL` in `db_impl_write.cc:2610`) acts as a form of temporal partitioning, closing old logs and opening new ones to ensure the system can eventually purge old data and bound recovery times.
 
 ---
 

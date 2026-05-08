@@ -3,6 +3,7 @@
 #include <thread>
 #include <chrono>
 #include <memory>
+#include <fstream>
 #include "rocksdb/db.h"
 
 using namespace ROCKSDB_NAMESPACE;
@@ -21,21 +22,25 @@ int main() {
     options.create_if_missing = true;
     DB::Open(options, kDBPath, &db);
 
-    const int kThreads = 4;
     const int kOpsPerThread = 5000;
-    
-    std::cout << "Starting Group Commit Benchmark with " << kThreads << " threads..." << std::endl;
-    auto start = std::chrono::high_resolution_clock::now();
-    
-    std::vector<std::thread> threads;
-    for (int i = 0; i < kThreads; i++) {
-        threads.emplace_back(WriterThread, db.get(), i, kOpsPerThread);
+    std::vector<int> thread_counts = {1, 4, 8};
+    std::ofstream csv("../results/wal_performance_telemetry.csv", std::ios_base::app);
+
+    for (int kThreads : thread_counts) {
+        auto start = std::chrono::high_resolution_clock::now();
+        std::vector<std::thread> threads;
+        for (int i = 0; i < kThreads; i++) {
+            threads.emplace_back(WriterThread, db.get(), i, kOpsPerThread);
+        }
+        for (auto& t : threads) t.join();
+
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        int tput = (kThreads * kOpsPerThread) / elapsed.count();
+        csv << "WAL_Group_Commit," << kThreads << "," << tput << "\n";
     }
-    for (auto& t : threads) t.join();
 
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Total Throughput: " << (kThreads * kOpsPerThread) / elapsed.count() << " ops/s" << std::endl;
-
+    csv.close();
+    std::cout << "Batch benchmark complete." << std::endl;
     return 0;
 }

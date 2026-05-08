@@ -1,32 +1,38 @@
 #include <iostream>
 #include <chrono>
 #include <memory>
+#include <fstream>
+#include <vector>
 #include "rocksdb/db.h"
 
 using namespace ROCKSDB_NAMESPACE;
 
 int main() {
-    std::string kDBPath = "/tmp/rocksdb_skew_bench";
-    std::unique_ptr<DB> db;
     Options options;
     options.create_if_missing = true;
+    std::ofstream csv("../results/wal_performance_telemetry.csv", std::ios_base::app);
+
+    std::vector<int> volumes = {10000, 50000, 100000, 500000};
     
-    // 1. Heavy Volume Load
-    std::cout << "Loading 100k items into WAL..." << std::endl;
-    DB::Open(options, kDBPath, &db);
-    for (int i = 0; i < 100000; i++) {
-        db->Put(WriteOptions(), "key" + std::to_string(i), "value");
+    for(int vol : volumes) {
+        std::string kDBPath = "/tmp/rocksdb_skew_bench_" + std::to_string(vol);
+        std::unique_ptr<DB> db;
+        
+        DB::Open(options, kDBPath, &db);
+        for (int i = 0; i < vol; i++) {
+            db->Put(WriteOptions(), "key" + std::to_string(i), "value");
+        }
+        db.reset(); 
+
+        auto start = std::chrono::high_resolution_clock::now();
+        DB::Open(options, kDBPath, &db);
+        auto end = std::chrono::high_resolution_clock::now();
+        
+        int ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        csv << "WAL_Recovery," << vol << "," << ms << "\n";
     }
-    db.reset(); // Shutdown without flush
 
-    // 2. Measure Recovery Time
-    std::cout << "Measuring MTTR (Mean Time To Recovery)..." << std::endl;
-    auto start = std::chrono::high_resolution_clock::now();
-    DB::Open(options, kDBPath, &db);
-    auto end = std::chrono::high_resolution_clock::now();
-    
-    std::chrono::duration<double, std::milli> elapsed = end - start;
-    std::cout << "MTTR for 100k items: " << elapsed.count() << " ms" << std::endl;
-
+    csv.close();
+    std::cout << "Skew benchmark complete." << std::endl;
     return 0;
 }
