@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Ensure execution permissions for scripts
+chmod +x "$0" 2>/dev/null
+chmod +x update_docs.py 2>/dev/null
+
 # RocksDB WAL 10-Minute Benchmark Suite
 
 echo "========================================================="

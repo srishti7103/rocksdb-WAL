@@ -1132,6 +1132,9 @@ Status DBImpl::RecoverLogFiles(const std::vector<uint64_t>& wal_numbers,
                                RecoveryContext* recovery_ctx) {
   mutex_.AssertHeld();
 
+  // Instrumentation: Track total recovery time for MTTR analysis
+  StopWatch sw(immutable_db_options_.clock, stats_, WAL_FILE_SYNC_MICROS);
+
   ROCKS_LOG_INFO(immutable_db_options_.info_log,
                  "wal_count=%zu, recovery_mode=%d",
                  wal_numbers.size(),

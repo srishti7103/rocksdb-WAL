@@ -22,23 +22,26 @@ def load_csv_data():
     return data
 
 def calculate_metrics(data):
-    # Sync Tax: WAL_Batch,3 / WAL_Batch,1
-    sync_tax = round(data.get(('WAL_Batch', '3'), 1) / data.get(('WAL_Batch', '1'), 1))
+    # Study 1: Sync Tax (Buffered vs StrictSync)
+    buffered = data.get(('WAL_Sync_Control', 'Buffered'), 1)
+    strict = data.get(('WAL_Sync_Control', 'StrictSync'), 1)
+    sync_tax = round(buffered / strict) if strict > 0 else 0
     
-    # Fragmentation: Header / (Header + Payload)
-    header = data.get(('WAL_Bytes_Header', '1000000'), 0)
-    payload = data.get(('WAL_Bytes_Payload', '1000000'), 1)
-    frag_pct = round((header / (header + payload)) * 100, 1)
+    # Study 2: Fragmentation (Header vs Payload)
+    header = data.get(('WAL_Fragmentation', 'Header'), 0)
+    payload = data.get(('WAL_Fragmentation', 'Payload'), 1)
+    frag_pct = round((header / (header + payload)) * 100, 2) if (header + payload) > 0 else 0
     
-    # Recovery Speedup: AbsoluteConsistency / TolerateCorrupted
-    abs_cons = data.get(('WAL_Recovery_Mode', 'AbsoluteConsistency'), 1)
-    tol_corr = data.get(('WAL_Recovery_Mode', 'TolerateCorrupted'), 1)
-    recovery_reduction = round(abs_cons / tol_corr)
+    # Study 3: Recovery Reduction (Absolute vs Tolerate)
+    abs_cons = data.get(('WAL_Recovery', 'Absolute'), 1)
+    tol_corr = data.get(('WAL_Recovery', 'Tolerate'), 1)
+    recovery_reduction = round(abs_cons / tol_corr, 1) if tol_corr > 0 else 0
     
-    # Group Commit: Thread 8 / Thread 1
-    thread_8 = data.get(('WAL_Group_Commit', '8'), 1)
+    # Study 4: Group Commit (Thread 1 vs Thread 8)
+    # Note: We want to show the efficiency gain/impact
     thread_1 = data.get(('WAL_Group_Commit', '1'), 1)
-    group_commit = round(thread_8 / thread_1, 1)
+    thread_8 = data.get(('WAL_Group_Commit', '8'), 1)
+    group_commit = round(thread_1 / thread_8, 1) if thread_8 > 0 else 0
     
     return {
         'SYNC_TAX': f"{sync_tax}x",
