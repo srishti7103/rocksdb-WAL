@@ -127,6 +127,7 @@ IOStatus Writer::AddRecord(const WriteOptions& write_options,
           // Fill the trailer (literal below relies on kHeaderSize and
           // kRecyclableHeaderSize being <= 11)
           assert(header_size_ <= 11);
+          g_wal_bytes_header.fetch_add(static_cast<size_t>(leftover), std::memory_order_relaxed);
           s = dest_->Append(opts,
                             Slice("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
                                   static_cast<size_t>(leftover)),
