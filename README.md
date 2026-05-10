@@ -147,7 +147,7 @@ Insight: Smaller block sizes increase fragmentation, leading to an unavoidable <
 ### Study 3: Recovery Mode Comparison
 <img src="./docs/images/exp3_recovery_mode.png" width="400" />
 
-Insight: Recovery time scales with the strictness of consistency checks, showing a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.0x**<!-- END_DYNAMIC --> reduction in MTTR with faster modes.
+Insight: Recovery time scales with the strictness of consistency checks, showing a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.8x**<!-- END_DYNAMIC --> reduction in MTTR with faster modes.
 
 ### Study 4: Group Commit Efficiency
 <img src="./docs/images/exp4_group_commit.png" width="400" />
