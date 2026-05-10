@@ -137,7 +137,7 @@ Individual insights derived from custom instrumentation telemetry.
 ### Study 1: Performance Tax of Durability
 <img src="./docs/images/exp1_throughput.png" width="400" />
 
-Insight: Strict synchronization (fsync) introduces a <!-- DYNAMIC:SYNC_TAX -->**380x**<!-- END_DYNAMIC --> performance floor limited by disk IOPS.
+Insight: Strict synchronization (fsync) introduces a <!-- DYNAMIC:SYNC_TAX -->**567x**<!-- END_DYNAMIC --> performance floor limited by disk IOPS.
 
 ### Study 2: Header Overhead and Fragmentation
 <img src="./docs/images/exp2_fragmentation.png" width="400" />
@@ -147,12 +147,12 @@ Insight: Smaller block sizes increase fragmentation, leading to an unavoidable <
 ### Study 3: Recovery Mode Comparison
 <img src="./docs/images/exp3_recovery_mode.png" width="400" />
 
-Insight: Recovery time scales with the strictness of consistency checks, showing a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.9x**<!-- END_DYNAMIC --> reduction in MTTR with faster modes.
+Insight: Recovery time scales with the strictness of consistency checks, showing a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.7x**<!-- END_DYNAMIC --> reduction in MTTR with faster modes.
 
 ### Study 4: Group Commit Efficiency
 <img src="./docs/images/exp4_group_commit.png" width="400" />
 
-Insight: Increased concurrency leverages the leader-follower batching mechanism to deliver a <!-- DYNAMIC:GROUP_COMMIT -->**1.2x**<!-- END_DYNAMIC --> throughput amplification.
+Insight: Increased concurrency leverages the leader-follower batching mechanism to deliver a <!-- DYNAMIC:GROUP_COMMIT -->**5.7x**<!-- END_DYNAMIC --> throughput amplification.
 
 ### Study 5: Recovery Scaling and MTTR
 <img src="./docs/images/exp5_scaling.png" width="400" />
