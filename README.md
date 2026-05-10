@@ -75,6 +75,9 @@ cd ~
 git clone https://github.com/srishti7103/rocksdb-WAL.git
 cd rocksdb-WAL
 git checkout wal-experiments
+
+# Ensure the benchmark script is executable
+chmod +x experiments/run_all.sh
 ```
 
 ### Step 3: Fix Line Endings (Required if Cloned on Windows)
