@@ -24,8 +24,11 @@ fi
 
 echo "[3/3] Executing experiments..."
 
-echo " -> Study 1: Synchronization & Latency"
-./sync_bench
+# Study 1: Synchronization & Latency
+    ./sync_bench --mode=buffered | grep "ops/s" | awk '{print "WAL_Sync_Control,Buffered," $NF}' >> ../results/wal_performance_telemetry.csv
+    ./sync_bench --mode=none | grep "ops/s" | awk '{print "WAL_Sync_Control,NoWAL," $NF}' >> ../results/wal_performance_telemetry.csv
+    ./sync_bench --mode=sync | grep "ops/s" | awk '{print "WAL_Sync_Control,StrictSync," $NF}' >> ../results/wal_performance_telemetry.csv
+    echo "Sync benchmark complete."
 
 echo " -> Study 2: Block Fragmentation Overhead"
 ./fragment_bench

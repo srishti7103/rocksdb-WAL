@@ -31,14 +31,15 @@ def calculate_metrics(data):
     metrics['SYNC_TAX'] = f"{sync_tax}x"
     
     # Study 2: FRAG_PCT (Header / Total)
-    header = float(data.get(('WAL_Fragmentation', 'Header'), 0))
-    payload = float(data.get(('WAL_Fragmentation', 'Payload'), 1))
+    # The CSV uses a key like ('WAL_Bytes_Header', '1000000')
+    header = float(data.get(('WAL_Bytes_Header', '1000000'), 0))
+    payload = float(data.get(('WAL_Bytes_Payload', '1000000'), 1))
     frag_pct = (header / (header + payload)) * 100 if (header + payload) > 0 else 0
     metrics['FRAG_PCT'] = f"{frag_pct:.1f}%"
     
     # Study 3: RECOVERY_REDUCTION (Absolute / Tolerate)
-    abs_rec = float(data.get(('WAL_Recovery', 'Absolute'), 1))
-    tol_rec = float(data.get(('WAL_Recovery', 'Tolerate'), 1))
+    abs_rec = float(data.get(('WAL_Recovery_Mode', 'AbsoluteConsistency'), 1))
+    tol_rec = float(data.get(('WAL_Recovery_Mode', 'TolerateCorrupted'), 1))
     reduction = int(abs_rec / tol_rec) if tol_rec > 0 else 1
     metrics['RECOVERY_REDUCTION'] = f"{reduction}x"
     
