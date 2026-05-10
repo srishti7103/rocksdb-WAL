@@ -113,10 +113,11 @@ make
 ```
 
 **B. Automated Pipeline (Recommended):**
-We provide a master script to run the full benchmark suite automatically:
+We provide a dedicated master script for the Viva demonstration. It runs the full suite silently and updates the report:
 ```bash
 cd experiments
-./run_all.sh
+chmod +x viva_run.sh
+./viva_run.sh
 ```
 
 ### Troubleshooting
