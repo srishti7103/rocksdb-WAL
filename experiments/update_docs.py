@@ -22,33 +22,36 @@ def load_csv_data():
     return data
 
 def calculate_metrics(data):
-    # Study 1: Sync Tax (Buffered vs StrictSync)
-    buffered = data.get(('WAL_Sync_Control', 'Buffered'), 1)
-    strict = data.get(('WAL_Sync_Control', 'StrictSync'), 1)
-    sync_tax = round(buffered / strict) if strict > 0 else 0
+    metrics = {}
     
-    # Study 2: Fragmentation (Header vs Payload)
-    header = data.get(('WAL_Fragmentation', 'Header'), 0)
-    payload = data.get(('WAL_Fragmentation', 'Payload'), 1)
-    frag_pct = round((header / (header + payload)) * 100, 2) if (header + payload) > 0 else 0
+    # Study 1: SYNC_TAX (Buffered / StrictSync)
+    buffered = float(data.get(('WAL_Sync_Control', 'Buffered'), 1))
+    strict = float(data.get(('WAL_Sync_Control', 'StrictSync'), 1))
+    sync_tax = int(buffered / strict) if strict > 0 else 0
+    metrics['SYNC_TAX'] = f"{sync_tax}x"
     
-    # Study 3: Recovery Reduction (Absolute vs Tolerate)
-    abs_cons = data.get(('WAL_Recovery', 'Absolute'), 1)
-    tol_corr = data.get(('WAL_Recovery', 'Tolerate'), 1)
-    recovery_reduction = round(abs_cons / tol_corr, 1) if tol_corr > 0 else 0
+    # Study 2: FRAG_PCT (Header / Total)
+    header = float(data.get(('WAL_Fragmentation', 'Header'), 0))
+    payload = float(data.get(('WAL_Fragmentation', 'Payload'), 1))
+    frag_pct = (header / (header + payload)) * 100 if (header + payload) > 0 else 0
+    metrics['FRAG_PCT'] = f"{frag_pct:.1f}%"
     
-    # Study 4: Group Commit (Thread 1 vs Thread 8)
-    # Note: We want to show the efficiency gain/impact
-    thread_1 = data.get(('WAL_Group_Commit', '1'), 1)
-    thread_8 = data.get(('WAL_Group_Commit', '8'), 1)
-    group_commit = round(thread_1 / thread_8, 1) if thread_8 > 0 else 0
+    # Study 3: RECOVERY_REDUCTION (Absolute / Tolerate)
+    abs_rec = float(data.get(('WAL_Recovery', 'Absolute'), 1))
+    tol_rec = float(data.get(('WAL_Recovery', 'Tolerate'), 1))
+    reduction = int(abs_rec / tol_rec) if tol_rec > 0 else 1
+    metrics['RECOVERY_REDUCTION'] = f"{reduction}x"
     
-    return {
-        'SYNC_TAX': f"{sync_tax}x",
-        'FRAG_PCT': f"{frag_pct}%",
-        'RECOVERY_REDUCTION': f"{recovery_reduction}x",
-        'GROUP_COMMIT': f"{group_commit}x"
-    }
+    # Study 4: GROUP_COMMIT (Max ratio of Scaling/Contention)
+    t1 = float(data.get(('WAL_Group_Commit', '1'), 1))
+    t8 = float(data.get(('WAL_Group_Commit', '8'), 1))
+    if t1 > 0:
+        ratio = max(t8/t1, t1/t8)
+        metrics['GROUP_COMMIT'] = f"{ratio:.1f}x"
+    else:
+        metrics['GROUP_COMMIT'] = "1.0x"
+    
+    return metrics
 
 def update_file(filepath, metrics):
     if not os.path.exists(filepath):
