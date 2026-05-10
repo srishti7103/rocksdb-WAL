@@ -27,11 +27,10 @@ def calculate_metrics(data):
     # Study 1: SYNC_TAX (Buffered / StrictSync)
     buffered = float(data.get(('WAL_Sync_Control', 'Buffered'), 1))
     strict = float(data.get(('WAL_Sync_Control', 'StrictSync'), 1))
-    sync_tax = int(buffered / strict) if strict > 0 else 0
+    sync_tax = round(buffered / strict) if strict > 0 else 0
     metrics['SYNC_TAX'] = f"{sync_tax}x"
     
     # Study 2: FRAG_PCT (Header / Total)
-    # The CSV uses a key like ('WAL_Bytes_Header', '1000000')
     header = float(data.get(('WAL_Bytes_Header', '1000000'), 0))
     payload = float(data.get(('WAL_Bytes_Payload', '1000000'), 1))
     frag_pct = (header / (header + payload)) * 100 if (header + payload) > 0 else 0
@@ -40,7 +39,7 @@ def calculate_metrics(data):
     # Study 3: RECOVERY_REDUCTION (Absolute / Tolerate)
     abs_rec = float(data.get(('WAL_Recovery_Mode', 'AbsoluteConsistency'), 1))
     tol_rec = float(data.get(('WAL_Recovery_Mode', 'TolerateCorrupted'), 1))
-    reduction = int(abs_rec / tol_rec) if tol_rec > 0 else 1
+    reduction = round(abs_rec / tol_rec, 1) if tol_rec > 0 else 1
     metrics['RECOVERY_REDUCTION'] = f"{reduction}x"
     
     # Study 4: GROUP_COMMIT (Max ratio of Scaling/Contention)
