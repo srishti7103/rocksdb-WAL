@@ -87,7 +87,7 @@ We modified the system by injecting `std::atomic` counters into the core source 
 ### Study 3: Recovery Modes (Crash Consistency)
 **Observation:** Tested different `WALRecoveryMode` settings during startup.
 ![Recovery Mode Performance](./docs/images/exp3_recovery_mode.png)
-**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.0x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR).
+**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.8x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR).
 
 ### Study 4: Concurrency Scaling
 **Observation:** Measured throughput while scaling from 1 to 8 concurrent threads.
