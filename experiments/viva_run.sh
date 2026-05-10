@@ -16,6 +16,7 @@ make clean
 make sync_bench fragment_bench recovery_bench batch_bench skew_bench -j$(nproc)
 
 # 3. Execution (Clean single-line output)
+echo "---------------------------------------------------------"
 echo "[1/5] Study 1: Synchronization & Latency"
 ./sync_bench | tee sync_out.txt
 grep "Buffered Mode" sync_out.txt | awk '{print "WAL_Sync_Control,Buffered," $(NF-1)}' >> $CSV_FILE
