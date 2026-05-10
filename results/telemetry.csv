@@ -1,0 +1,10 @@
+Event,Count,Metric
+WAL_Sync_Control,Buffered,538329
+1473173
+1266
+WAL_Sync_Control,NoWAL,824165
+1919351
+1687
+WAL_Sync_Control,StrictSync,682144
+1633836
+1667

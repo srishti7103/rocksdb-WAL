@@ -147,12 +147,12 @@ Insight: Smaller block sizes increase fragmentation, leading to an unavoidable <
 ### Study 3: Recovery Mode Comparison
 <img src="./docs/images/exp3_recovery_mode.png" width="400" />
 
-Insight: Recovery time scales with the strictness of consistency checks, showing a <!-- DYNAMIC:RECOVERY_REDUCTION -->**2.0x**<!-- END_DYNAMIC --> reduction in MTTR with faster modes.
+Insight: Recovery time scales with the strictness of consistency checks, showing a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.0x**<!-- END_DYNAMIC --> reduction in MTTR with faster modes.
 
 ### Study 4: Group Commit Efficiency
 <img src="./docs/images/exp4_group_commit.png" width="400" />
 
-Insight: Increased concurrency leverages the leader-follower batching mechanism to deliver a <!-- DYNAMIC:GROUP_COMMIT -->**2.0x**<!-- END_DYNAMIC --> throughput amplification.
+Insight: Increased concurrency leverages the leader-follower batching mechanism to deliver a <!-- DYNAMIC:GROUP_COMMIT -->**1.0x**<!-- END_DYNAMIC --> throughput amplification.
 
 ### Study 5: Recovery Scaling and MTTR
 <img src="./docs/images/exp5_scaling.png" width="400" />

@@ -55,7 +55,7 @@ We identified three critical design decisions within the codebase.
 ### Decision 2: Group Commit Batching
 - **Where is it implemented?** `db/write_thread.cc` (Line 440)
 - **What problem does it solve?** It mitigates the I/O bottleneck by preventing 100 concurrent threads from issuing 100 separate `fsync` calls.
-- **What tradeoff does it introduce?** **Individual Latency vs. Total Throughput.** A tiny wait time for a "Leader" to form a batch yields a <!-- DYNAMIC:GROUP_COMMIT -->**2.0x**<!-- END_DYNAMIC --> amplification in overall system throughput.
+- **What tradeoff does it introduce?** **Individual Latency vs. Total Throughput.** A tiny wait time for a "Leader" to form a batch yields a <!-- DYNAMIC:GROUP_COMMIT -->**1.0x**<!-- END_DYNAMIC --> amplification in overall system throughput.
 
 ### Decision 3: Fixed-Block Alignment
 - **Where is it implemented?** `db/log_writer.cc` (Line 320)
@@ -87,12 +87,12 @@ We modified the system by injecting `std::atomic` counters into the core source 
 ### Study 3: Recovery Modes (Crash Consistency)
 **Observation:** Tested different `WALRecoveryMode` settings during startup.
 ![Recovery Mode Performance](./docs/images/exp3_recovery_mode.png)
-**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**2.0x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR).
+**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.0x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR).
 
 ### Study 4: Concurrency Scaling
 **Observation:** Measured throughput while scaling from 1 to 8 concurrent threads.
 ![Group Commit Efficiency](./docs/images/exp4_group_commit.png)
-**Result:** Group Commit batching amortizes I/O costs, delivering a <!-- DYNAMIC:GROUP_COMMIT -->**2.0x**<!-- END_DYNAMIC --> throughput amplification.
+**Result:** Group Commit batching amortizes I/O costs, delivering a <!-- DYNAMIC:GROUP_COMMIT -->**1.0x**<!-- END_DYNAMIC --> throughput amplification.
 
 ### Study 5: MTTR Volume Scaling
 **Observation:** Measured recovery time as the uncompressed WAL volume grew.
