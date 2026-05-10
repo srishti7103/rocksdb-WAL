@@ -1,5 +1,5 @@
 #!/bin/bash
-# VIVA_RUN.SH - PROFESSIONAL VERSION
+# VIVA_RUN.SH - PROFESSOR-GRADE VERBOSE VERSION (CLEAN CSV)
 
 echo "========================================================="
 echo "   RocksDB WAL Instrumentation: System Benchmark Suite"
@@ -14,25 +14,31 @@ mkdir -p ../results
 echo "Event,Count,Metric" > $CSV_FILE
 
 # 3. Execution
-echo "[1/5] Analyzing Synchronization Overhead..."
-./sync_bench --mode=buffered | grep "ops/s" | head -n 1 | awk '{print "WAL_Sync_Control,Buffered," $(NF-1)}' >> $CSV_FILE
-./sync_bench --mode=none     | grep "ops/s" | head -n 1 | awk '{print "WAL_Sync_Control,NoWAL," $(NF-1)}' >> $CSV_FILE
-./sync_bench --mode=sync     | grep "ops/s" | head -n 1 | awk '{print "WAL_Sync_Control,StrictSync," $(NF-1)}' >> $CSV_FILE
+echo "[1/5] Study 1: Synchronization & Latency"
+./sync_bench | tee sync_out.txt
+grep "Buffered Mode" sync_out.txt | awk '{print "WAL_Sync_Control,Buffered," $(NF-1)}' >> $CSV_FILE
+grep "No-WAL Mode"   sync_out.txt | awk '{print "WAL_Sync_Control,NoWAL," $(NF-1)}' >> $CSV_FILE
+grep "Strict Sync"   sync_out.txt | awk '{print "WAL_Sync_Control,StrictSync," $(NF-1)}' >> $CSV_FILE
+echo "---------------------------------------------------------"
 
-echo "[2/5] Analyzing Block Fragmentation..."
-./fragment_bench > /dev/null
+echo "[2/5] Study 2: Block Fragmentation Overhead"
+./fragment_bench | tee /dev/tty
+echo "---------------------------------------------------------"
 
-echo "[3/5] Analyzing Recovery Consistency..."
-./recovery_bench > /dev/null
+echo "[3/5] Study 3: Recovery Consistency Modes"
+./recovery_bench | tee /dev/tty
+echo "---------------------------------------------------------"
 
-echo "[4/5] Analyzing Group Commit Efficiency..."
-./batch_bench > /dev/null
+echo "[4/5] Study 4: Group Commit Scaling"
+./batch_bench | tee /dev/tty
+echo "---------------------------------------------------------"
 
-echo "[5/5] Analyzing MTTR Volume Scaling..."
-./skew_bench > /dev/null
+echo "[5/5] Study 5: MTTR Volume Scaling"
+./skew_bench | tee /dev/tty
+echo "---------------------------------------------------------"
 
 echo "========================================================="
-echo "Experiments complete. Updating documentation..."
+echo "Data collection complete. Generating visualizations..."
 
 # 4. Documentation
 jupyter nbconvert --to notebook --execute ../comparison.ipynb --inplace --allow-errors > /dev/null 2>&1
@@ -41,3 +47,4 @@ python3 viva_update.py
 echo "========================================================="
 echo "STATUS: ALL SYSTEMS VERIFIED. PROJECT READY FOR REVIEW."
 echo "========================================================="
+rm -f sync_out.txt
