@@ -13,7 +13,7 @@ rm -f $CSV_FILE
 mkdir -p ../results
 echo "Event,Count,Metric" > $CSV_FILE
 make clean
-make sync_bench fragment_bench recovery_bench batch_bench skew_bench -j$(nproc)
+make sync_bench fragment_bench recovery_bench batch_bench recovery_scaling_bench -j$(nproc)
 
 # 3. Execution (Clean single-line output)
 echo "---------------------------------------------------------"
@@ -37,7 +37,7 @@ echo "[4/5] Study 4: Group Commit Scaling (Sync Mode)"
 echo "---------------------------------------------------------"
 
 echo "[5/5] Study 5: MTTR Volume Scaling"
-./skew_bench
+./recovery_scaling_bench
 echo "---------------------------------------------------------"
 
 echo "========================================================="

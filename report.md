@@ -87,7 +87,7 @@ We modified the system by injecting `std::atomic` counters into the core source 
 ### Study 3: Recovery Modes (Crash Consistency)
 **Observation:** Tested different `WALRecoveryMode` settings during startup.
 ![Recovery Mode Performance](./docs/images/exp3_recovery_mode.png)
-**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**2.5x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR).
+**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**2.5x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR) baseline overhead (measured via clean-shutdown).
 
 ### Study 4: Concurrency Scaling
 **Observation:** Measured throughput while scaling from 1 to 8 concurrent threads.
@@ -97,14 +97,13 @@ We modified the system by injecting `std::atomic` counters into the core source 
 ### Study 5: MTTR Volume Scaling
 **Observation:** Measured recovery time as the uncompressed WAL volume grew.
 ![Recovery Scaling Analysis](./docs/images/exp5_scaling.png)
-**Result:** WAL replay performance exhibits strict **Linear Complexity ($O(n)$)**.
+**Result:** WAL replay performance exhibits **Proportional Scaling** as data volume increases.
 
 ---
 
 ## 7. Failure Analysis
 
-### What happens when data size increases significantly? (Scenario A)
-Based on Study 5, if the WAL volume grows excessively (e.g., due to stalled compactions), the system faces a severe availability risk. Because recovery scaling is linear $O(n)$, an unmanaged WAL size will cause MTTR to increase proportionally, violating availability SLAs.
+Based on Study 5, if the WAL volume grows excessively (e.g., due to stalled compactions), the system faces a severe availability risk. Because recovery scaling is proportional to data volume, an unmanaged WAL size will cause MTTR to increase accordingly, potentially violating availability SLAs.
 
 ### What happens if a component fails mid-write? (Scenario B)
 If the power fails mid-write, a sector may be partially flushed. The RocksDB WAL subsystem manages this via **Torn Write Detection**. During replay, `log::Reader` verifies CRC-32 checksums for every fragment. If it encounters corruption, it discards the trailing records, ensuring the system never recovers into an inconsistent state.

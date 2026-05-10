@@ -25,7 +25,7 @@ int main() {
     if (!s.ok()) return 1;
 
     WriteOptions write_options;
-    // Use 10,000 bytes to show visible fragmentation (approx 2-3%)
+    // Use 10,000 bytes to show visible fragmentation (approx 0.1%)
     std::string large_value(10000, 'a'); 
     
     int ops = 5000;

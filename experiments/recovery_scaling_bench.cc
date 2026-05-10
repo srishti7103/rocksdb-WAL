@@ -15,7 +15,7 @@ int main() {
     std::vector<int> volumes = {10000, 50000, 100000, 500000};
     
     for(int vol : volumes) {
-        std::string kDBPath = "/tmp/rocksdb_skew_bench_" + std::to_string(vol);
+        std::string kDBPath = "/tmp/rocksdb_recovery_scaling_bench_" + std::to_string(vol);
         std::unique_ptr<DB> db;
         
         DB::Open(options, kDBPath, &db);
@@ -35,6 +35,6 @@ int main() {
     }
 
     csv.close();
-    std::cout << "Skew benchmark complete.\n" << std::endl;
+    std::cout << "Recovery scaling benchmark complete.\n" << std::endl;
     return 0;
 }

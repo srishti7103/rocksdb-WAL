@@ -17,6 +17,9 @@ int main() {
     for (int i = 0; i < 10000; i++) {
         db->Put(WriteOptions(), "rec_key" + std::to_string(i), "val");
     }
+    // Note: db.reset() triggers a clean shutdown, which rotates/finalizes the WAL.
+    // In this benchmark, subsequent Open() calls measure the baseline overhead of 
+    // different recovery modes on a clean log, rather than true corruption recovery.
     db.reset(); 
 
     std::ofstream csv("../results/wal_performance_telemetry.csv", std::ios_base::app);

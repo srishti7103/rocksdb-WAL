@@ -2,7 +2,7 @@ CXX = g++
 CXXFLAGS = -std=c++20 -I../include -O2
 LDFLAGS = -L.. -lrocksdb -lpthread -lsnappy -lzstd -llz4 -lbz2 -lz -ldl
 
-TARGETS = sync_bench fragment_bench recovery_bench batch_bench skew_bench
+TARGETS = sync_bench fragment_bench recovery_bench batch_bench recovery_scaling_bench
 
 all: $(TARGETS)
 
@@ -18,7 +18,7 @@ recovery_bench: recovery_bench.cc
 batch_bench: batch_bench.cc
 	$(CXX) $(CXXFLAGS) $@.cc -o $@ $(LDFLAGS)
 
-skew_bench: skew_bench.cc
+recovery_scaling_bench: recovery_scaling_bench.cc
 	$(CXX) $(CXXFLAGS) $@.cc -o $@ $(LDFLAGS)
 
 clean:

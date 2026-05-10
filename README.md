@@ -35,7 +35,7 @@ Focused overview of edited and newly added components:
 │   ├── fragment_bench.cc           (Study 2: Overhead Analysis)
 │   ├── recovery_bench.cc           (Study 3: Consistency Modes)
 │   ├── batch_bench.cc              (Study 4: Concurrent Writing)
-│   └── skew_bench.cc               (Study 5: MTTR Scaling)
+│   ├── recovery_scaling_bench.cc   (Study 5: MTTR Scaling)
 ├── comparison.ipynb                [New: Verification Notebook]
 ├── report.md                       [Systems Engineering Report]
 └── README.md                       [Technical Overview]
@@ -109,7 +109,7 @@ make
 ./fragment_bench
 ./recovery_bench
 ./batch_bench
-./skew_bench
+./recovery_scaling_bench
 ```
 
 **B. Automated Pipeline (Recommended):**
@@ -158,7 +158,7 @@ Insight: Increased concurrency leverages the leader-follower batching mechanism 
 ### Study 5: Recovery Scaling and MTTR
 <img src="./docs/images/exp5_scaling.png" width="400" />
 
-Insight: Mean Time To Recovery (MTTR) increases linearly with the volume of uncompressed WAL data.
+Insight: Mean Time To Recovery (MTTR) scales proportionally with the volume of uncompressed WAL data.
 
 ---
 
@@ -167,12 +167,12 @@ Quantitative breakdown of instrumentation changes across the core RocksDB system
 
 | Instrumented File | Additions (+) | Deletions (-) | Summary of Change |
 | :--- | :--- | :--- | :--- |
-| `db/log_writer.cc` | 18 | 0 | Fragmentation and payload atomic counters |
+| `db/log_writer.cc` | 19 | 0 | Fragmentation and payload atomic counters |
 | `db/log_writer.h` | 13 | 0 | External counter declarations |
 | `db/write_thread.h` | 19 | 0 | Batching and group commit metrics |
 | `db/write_thread.cc` | 10 | 0 | Group commit efficiency logic |
 | `db/db_impl/db_impl_write.cc` | 10 | 0 | Sync-mode performance counters |
-| `db/db_impl/db_impl_open.cc` | 10 | 0 | Recovery path timing and telemetry |
+| `db/db_impl/db_impl_open.cc` | 13 | 0 | Recovery path timing and telemetry |
 | `db/log_reader.cc` | 5 | 0 | CRC mismatch and corruption detection |
 | `db/log_format.h` | 4 | 0 | Configurable block-level macro logic |
 
