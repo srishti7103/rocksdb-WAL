@@ -10,6 +10,7 @@ using namespace ROCKSDB_NAMESPACE;
 
 void WriterThread(DB* db, int id, int num_ops) {
     WriteOptions wo;
+    wo.sync = true; // Enable Sync to show Group Commit scaling
     for (int i = 0; i < num_ops; i++) {
         db->Put(wo, "thread" + std::to_string(id) + "_key" + std::to_string(i), "val");
     }

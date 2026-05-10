@@ -25,7 +25,8 @@ int main() {
     if (!s.ok()) return 1;
 
     WriteOptions write_options;
-    std::string large_value(128 * 1024, 'a');
+    // Use non-aligned size to show fragmentation
+    std::string large_value(31000, 'a'); 
     
     int ops = 5000;
     for(int i=0; i<ops; i++) {
@@ -33,7 +34,7 @@ int main() {
     }
 
     uint64_t header = log::g_wal_bytes_header.load();
-    uint64_t payload = ops * 128 * 1024;
+    uint64_t payload = (uint64_t)ops * 31000;
 
     std::ofstream csv("../results/wal_performance_telemetry.csv", std::ios_base::app);
     csv << "WAL_Bytes_Header," << ops << "," << header << "\n";
