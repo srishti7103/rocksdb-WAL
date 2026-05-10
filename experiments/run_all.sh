@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 # Configuration
 UPDATE_DOCS=false
@@ -16,7 +15,6 @@ prepare_env() {
 
 compile_drivers() {
     echo "[2/3] Compiling test drivers..."
-    # Logic to compile benchmarks if needed
     make sync_bench fragment_bench recovery_bench batch_bench skew_bench -j$(nproc)
 }
 
@@ -24,7 +22,6 @@ run_benchmarks() {
     echo "[3/3] Executing experiments..."
 
     echo " -> Study 1: Synchronization & Latency"
-    # Capture numeric value (penultimate field before 'ops/s')
     ./sync_bench --mode=buffered | tee /dev/tty | grep "ops/s" | awk '{print "WAL_Sync_Control,Buffered," $(NF-1)}' >> ../results/wal_performance_telemetry.csv
     ./sync_bench --mode=none | tee /dev/tty | grep "ops/s" | awk '{print "WAL_Sync_Control,NoWAL," $(NF-1)}' >> ../results/wal_performance_telemetry.csv
     ./sync_bench --mode=sync | tee /dev/tty | grep "ops/s" | awk '{print "WAL_Sync_Control,StrictSync," $(NF-1)}' >> ../results/wal_performance_telemetry.csv
@@ -51,8 +48,12 @@ generate_docs() {
     echo "========================================================="
     echo "Data collection complete. Generating visualizations..."
     
-    # Run Jupyter to regenerate plots
-    jupyter nbconvert --to notebook --execute comparison.ipynb
+    # Check if notebook exists in root or here
+    if [ -f "../comparison.ipynb" ]; then
+        jupyter nbconvert --to notebook --execute ../comparison.ipynb --inplace
+    elif [ -f "comparison.ipynb" ]; then
+        jupyter nbconvert --to notebook --execute comparison.ipynb --inplace
+    fi
     
     if [ "$UPDATE_DOCS" = true ]; then
         echo "Updating documentation metrics..."
