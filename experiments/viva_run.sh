@@ -1,5 +1,5 @@
 #!/bin/bash
-# VIVA_RUN.SH - PROFESSOR-GRADE VERBOSE VERSION (CLEAN CSV)
+# VIVA_RUN.SH - AUDIT-READY PROFESSIONAL VERSION
 
 echo "========================================================="
 echo "   RocksDB WAL Instrumentation: System Benchmark Suite"
@@ -8,12 +8,14 @@ echo "========================================================="
 # 1. Configuration
 CSV_FILE="../results/wal_performance_telemetry.csv"
 
-# 2. Cleanup
+# 2. Cleanup & Build (Force new theory logic)
 rm -f $CSV_FILE
 mkdir -p ../results
 echo "Event,Count,Metric" > $CSV_FILE
+make clean
+make sync_bench fragment_bench recovery_bench batch_bench skew_bench -j$(nproc)
 
-# 3. Execution
+# 3. Execution (Clean single-line output)
 echo "[1/5] Study 1: Synchronization & Latency"
 ./sync_bench | tee sync_out.txt
 grep "Buffered Mode" sync_out.txt | awk '{print "WAL_Sync_Control,Buffered," $(NF-1)}' >> $CSV_FILE
@@ -22,19 +24,19 @@ grep "Strict Sync"   sync_out.txt | awk '{print "WAL_Sync_Control,StrictSync," $
 echo "---------------------------------------------------------"
 
 echo "[2/5] Study 2: Block Fragmentation Overhead"
-./fragment_bench | tee /dev/tty
+./fragment_bench
 echo "---------------------------------------------------------"
 
 echo "[3/5] Study 3: Recovery Consistency Modes"
-./recovery_bench | tee /dev/tty
+./recovery_bench
 echo "---------------------------------------------------------"
 
-echo "[4/5] Study 4: Group Commit Scaling"
-./batch_bench | tee /dev/tty
+echo "[4/5] Study 4: Group Commit Scaling (Sync Mode)"
+./batch_bench
 echo "---------------------------------------------------------"
 
 echo "[5/5] Study 5: MTTR Volume Scaling"
-./skew_bench | tee /dev/tty
+./skew_bench
 echo "---------------------------------------------------------"
 
 echo "========================================================="
