@@ -77,7 +77,7 @@ cd rocksdb-WAL
 git checkout wal-experiments
 
 # Ensure the benchmark script is executable
-chmod +x experiments/run_all.sh
+chmod +x experiments/viva_run.sh
 ```
 
 ### Step 3: Fix Line Endings (Required if Cloned on Windows)
