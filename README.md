@@ -96,13 +96,12 @@ make static_lib -j$(nproc)
 
 ### Step 5: Build and Run Experiments
 
+You can run individual benchmarks or use the automated suite:
+
+**A. Individual Benchmarks:**
 ```bash
 cd experiments
 make
-```
-
-Then run any of the five studies:
-```bash
 ./sync_bench
 ./fragment_bench
 ./recovery_bench
@@ -110,7 +109,12 @@ Then run any of the five studies:
 ./skew_bench
 ```
 
-Each benchmark writes CSV output to the current directory for analysis.
+**B. Automated Pipeline (Recommended):**
+We provide a master script to run the full benchmark suite automatically:
+```bash
+cd experiments
+./run_all.sh
+```
 
 ### Troubleshooting
 
