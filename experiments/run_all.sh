@@ -36,12 +36,20 @@ echo " -> Study 5: MTTR Volume Scaling"
 ./skew_bench
 
 echo "========================================================="
-echo "Data collection complete. Generating visualizations..."
-cd ..
-
-python3 -m pip install jupyter pandas matplotlib seaborn > /dev/null 2>&1
-python3 -m jupyter nbconvert --to notebook --execute comparison.ipynb --inplace
-
-echo "========================================================="
-echo "All systems verified. Project is ready for review."
+if [ "$1" == "--update-docs" ]; then
+    echo "Data collection complete. Generating visualizations..."
+    cd ..
+    python3 -m pip install jupyter pandas matplotlib seaborn > /dev/null 2>&1
+    python3 -m jupyter nbconvert --to notebook --execute comparison.ipynb --inplace
+    echo "Updating documentation metrics..."
+    cd experiments
+    python3 update_docs.py
+    echo "========================================================="
+    echo "Contributor Mode: All systems verified and documentation updated."
+else
+    echo "Data collection complete. Telemetry saved to results/wal_performance_telemetry.csv"
+    echo "Summary of run metrics available in CSV."
+    echo "========================================================="
+    echo "Reviewer Mode: Experiments verified. Documentation was NOT overwritten."
+fi
 echo "========================================================="

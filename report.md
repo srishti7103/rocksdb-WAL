@@ -2,17 +2,16 @@
 
 ---
 
-## Abstract
-This technical report details the instrumentation and performance analysis of the Write-Ahead Log (WAL) subsystem in RocksDB. The WAL is a mission-critical component in Log-Structured Merge-Tree (LSM) architectures, ensuring data durability and atomicity. Through direct source-code instrumentation, we quantified binary performance tradeoffs involving I/O synchronization, block-level fragmentation, and concurrent batching mechanisms.
+## 1. System Overview & Problem Statement
+**What problem does this system solve?**
+RocksDB utilizes a Log-Structured Merge-Tree (LSM) architecture where data is initially written to a volatile in-memory structure (MemTable). Because RAM is ephemeral, a system crash would result in total data loss for uncompacted writes. The **Write-Ahead Log (WAL)** solves this durability problem. It is a sequential on-disk log that records every write operation *before* MemTable insertion, acting as the sole durability guarantee while maintaining high ingestion speeds.
 
 ---
 
-## 1. Execution Path Understanding
-To understand the system, we traced the **Write Path (Data Ingestion → Storage)**. When a `Put(key, value)` request is issued, it traverses several architectural components before completion.
+## 2. Execution Understanding: The Write Path
+To demonstrate execution understanding, we traced the **Write Path (Data Ingestion → Storage)**. When a `Put(key, value)` request is issued, it traverses several components.
 
-### 1.1 Architectural Execution Trace
-The following trace illustrating the execution path and telemetry points injected into the RocksDB core:
-
+### 2.1 Architectural Execution Trace
 ```mermaid
 graph TD
     A["WriteRequest (Put)"] --> B["WriteThread::EnterAsBatchGroupLeader"]
@@ -28,95 +27,96 @@ graph TD
     J --> K["Success Acknowledgment"]
 ```
 
-### 1.2 Code References
-The path utilizes the following primary functions/files:
+### 2.2 Core Code References
 - **Batching Entry**: `db/write_thread.cc` -> `WriteThread::EnterAsBatchGroupLeader`
 - **Serialization**: `db/log_writer.cc` -> `log::Writer::AddRecord`
 - **Persistence**: `db/db_impl/db_impl_write.cc` -> `DBImpl::WriteToWAL`
 
 ---
 
-## 2. Concept Mapping
+## 3. Concept Mapping
 We mapped the RocksDB WAL subsystem to five core systems engineering concepts:
-1.  **Storage Architecture (LSM-tree)**: RocksDB utilizes a Log-Structured Merge-tree where the WAL provides the mandatory durability layer for volatile memtables.
-2.  **Reliability & Fault Tolerance**: Utilizing CRC-32C checksums and recovery modes to ensure data integrity after unexpected power loss.
-3.  **Data Ingestion & Streaming**: Analyzing the ingestion pipeline through Group Commit batching.
-4.  **Performance Metrics (Throughput vs. Latency)**: Measuring the "Safety Tax" on I/O operations through quantitative benchmarking.
-5.  **Partitioning / Data Lifecycle**: WAL rotation (`SwitchWAL` in `db_impl_write.cc:2610`) acts as a form of temporal partitioning, closing old logs and opening new ones to ensure the system can eventually purge old data and bound recovery times.
+1. **Storage Architecture (LSM-tree)**: The WAL provides the mandatory durability layer for volatile MemTables.
+2. **Reliability & Fault Tolerance**: Utilizing CRC-32C checksums and torn-write detection to ensure data integrity after unexpected power loss.
+3. **Data Ingestion & Streaming**: The system relies on Group Commit batching to handle highly concurrent streaming ingestion pipelines.
+4. **Performance Metrics**: Measuring the tradeoff between throughput and latency via quantitative benchmarking.
+5. **Partitioning / Data Lifecycle**: WAL rotation (`SwitchWAL` in `db_impl_write.cc:2610`) acts as temporal partitioning, bounding recovery times by purging old logs.
 
 ---
 
-## 3. Key Design Decisions & Tradeoffs
+## 4. Key Design Decisions
+We identified three critical design decisions within the codebase.
 
-As per the project requirements, we identified three critical design decisions within the WAL subsystem:
+### Decision 1: Write Synchronization Policy
+- **Where is it implemented?** `db/db_impl/db_impl_write.cc` (Line 2264)
+- **What problem does it solve?** It gives the user control over how strictly data must be flushed to physical media.
+- **What tradeoff does it introduce?** **Safety vs. Speed.** Strict `fsync()` guarantees durability but introduces a <!-- DYNAMIC:SYNC_TAX -->**307x**<!-- END_DYNAMIC --> performance tax compared to OS buffering.
 
-### Decision 1: Write Synchronization Policy (Buffering vs. Persistence)
-- **Implementation**: `db/db_impl/db_impl_write.cc` (Line 2264)
-- **Problem Solved**: Provides user-level control over the durability-latency tradeoff.
-- **Tradeoff**: **Safety vs. Speed**. Enabling `sync=true` provides absolute durability but reduces throughput by **300x** (See Study 1).
+### Decision 2: Group Commit Batching
+- **Where is it implemented?** `db/write_thread.cc` (Line 440)
+- **What problem does it solve?** It mitigates the I/O bottleneck by preventing 100 concurrent threads from issuing 100 separate `fsync` calls.
+- **What tradeoff does it introduce?** **Individual Latency vs. Total Throughput.** A tiny wait time for a "Leader" to form a batch yields a <!-- DYNAMIC:GROUP_COMMIT -->**7.7x**<!-- END_DYNAMIC --> amplification in overall system throughput.
 
-### Decision 2: Group Commit (Batching Synchronization)
-- **Implementation**: `db/write_thread.cc` (Line 440)
-- **Problem Solved**: Mitigates the I/O bottleneck by amortizing the cost of a single `fsync` across multiple concurrent writers.
-- **Tradeoff**: **Lower Individual Latency vs. Higher Total Throughput**. Introducing a tiny wait for batch formation significantly increases overall system ingestion capacity (See Study 4).
-
-### Decision 3: Record Fragmentation & Fixed-Block Alignment
-- **Implementation**: `db/log_writer.cc` (Line 320)
-- **Problem Solved**: Aligns WAL writes with physical hardware pages (e.g., SSD NAND pages) for optimal I/O performance.
-- **Tradeoff**: **Alignment Speed vs. Storage Wasted**. Fixed-size blocks introduce **2.7% metadata fragmentation** (See Study 2).
+### Decision 3: Fixed-Block Alignment
+- **Where is it implemented?** `db/log_writer.cc` (Line 320)
+- **What problem does it solve?** It aligns WAL writes with physical hardware pages (e.g., SSD NAND pages) for optimal I/O speed.
+- **What tradeoff does it introduce?** **Alignment Speed vs. Wasted Storage.** Splitting records across fixed 32KB blocks introduces <!-- DYNAMIC:FRAG_PCT -->**2.7%**<!-- END_DYNAMIC --> metadata fragmentation overhead.
 
 ---
 
-## 4. Experimental Evaluations (Mandatory Modification)
+## 5. Architectural Assumptions
+Before running experiments, we identified the critical assumptions this system relies on:
+1. **Fsync Integrity**: The system relies on POSIX `fsync` to flush the drive cache. If the hardware "lies" about persistence, durability guarantees fail.
+2. **Storage Atomicity**: The hardware must provide atomic writes at the sector level. If a sector write is partially completed (torn), the CRC-32 signatures must catch it.
 
-We modified the RocksDB source code to inject `std::atomic` counters and observed its behavior under five experimental scenarios.
+---
+
+## 6. Experimental Evaluations (Mandatory Modification)
+We modified the system by injecting `std::atomic` counters into the core source code to isolate and observe behavior.
 
 ### Study 1: The "Safety Tax"
+**Observation:** Compared strict synchronization vs. buffered writes.
 ![Sync Throughput Analysis](./docs/images/exp1_throughput.png)
-**Results**: Synchronous writes operate at physical disk limits (~1.6K Ops/s), whereas buffered writes leverage the OS Page Cache for ~500K Ops/s.
+**Result:** Enabling `fsync()` introduces a <!-- DYNAMIC:SYNC_TAX -->**307x**<!-- END_DYNAMIC --> reduction in throughput.
 
-### Study 2: Storage Efficiency
+### Study 2: Storage Efficiency (Fragmentation)
+**Observation:** Measured header bytes vs. payload bytes during sequential insertion.
 ![Fragmentation Ratio](./docs/images/exp2_fragmentation.png)
-**Results**: Standard 32KB block alignment results in ~2.7% header overhead.
+**Result:** Hardware-aligned fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**2.7%**<!-- END_DYNAMIC --> metadata fragmentation.
+
+### Study 3: Recovery Modes (Crash Consistency)
+**Observation:** Tested different `WALRecoveryMode` settings during startup.
+![Recovery Mode Performance](./docs/images/exp3_recovery_mode.png)
+**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**14x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR).
 
 ### Study 4: Concurrency Scaling
+**Observation:** Measured throughput while scaling from 1 to 8 concurrent threads.
 ![Group Commit Efficiency](./docs/images/exp4_group_commit.png)
-**Results**: Group Commit delivers a **7.6x amplification** in throughput when concurrent writers increase from 1 to 8.
+**Result:** Group Commit batching amortizes I/O costs, delivering a <!-- DYNAMIC:GROUP_COMMIT -->**7.7x**<!-- END_DYNAMIC --> throughput amplification.
 
----
-
-## 5. Failure Analysis
-
-We addressed the following two failure scenarios as part of our analysis:
-
-### 5.1 Scenario A: Significant Increase in Data Size
-**The Problem**: How does the system behave as the WAL volume grows?
-**Findings (Study 5)**:
+### Study 5: MTTR Volume Scaling
+**Observation:** Measured recovery time as the uncompressed WAL volume grew.
 ![Recovery Scaling Analysis](./docs/images/exp5_scaling.png)
-
-We observed that WAL replay performance exhibits **Linear Complexity ($O(n)$)**. If the WAL grows significantly without checkpointing, the MTTR increases linearly, potentially violating availability SLAs.
-
-### 5.2 Scenario B: Component Failure (Crash Consistency)
-**The Problem**: What happens if the system fails mid-write?
-**Findings (Study 3)**:
-![Recovery Mode Performance](./docs/images/exp3_recovery_mode.png)
-
-RocksDB handles this through **Torn Write Detection**. The WAL replayer (Study 3) identifies records with missing "Last" fragments or mismatched CRC-32 signatures and discards them, ensuring the system never recovers into a partially-written, inconsistent state. By adopting faster recovery modes, we observed a **14x reduction** in MTTR.
-
-### 5.3 Architectural Assumptions
-The RocksDB WAL subsystem operates under the following critical assumptions:
-1.  **Storage Atomicity**: The system assumes that the underlying hardware (SSD/HDD) provides atomic writes at the sector level (512B - 4KB). If a sector write is partially completed at the physical level, CRC-32 signatures may fail in unexpected ways.
-2.  **Fsync Integrity**: The system relies on the POSIX `fsync` or `fdatasync` system calls to correctly flush the volatile drive cache. If the drive hardware "lies" about persistence to improve benchmark scores, the WAL's durability guarantees are invalidated.
+**Result:** WAL replay performance exhibits strict **Linear Complexity ($O(n)$)**.
 
 ---
 
-## 6. Conclusion
-By reverse-engineering the RocksDB WAL, we successfully connected actual C++ code implementations to high-level system design concepts. Our experiments prove that the WAL is not merely a data buffer, but a carefully balanced engine of tradeoffs between performance, safety, and recovery speed.
+## 7. Failure Analysis
+
+### What happens when data size increases significantly? (Scenario A)
+Based on Study 5, if the WAL volume grows excessively (e.g., due to stalled compactions), the system faces a severe availability risk. Because recovery scaling is linear $O(n)$, an unmanaged WAL size will cause MTTR to increase proportionally, violating availability SLAs.
+
+### What happens if a component fails mid-write? (Scenario B)
+If the power fails mid-write, a sector may be partially flushed. The RocksDB WAL subsystem manages this via **Torn Write Detection**. During replay, `log::Reader` verifies CRC-32 checksums for every fragment. If it encounters corruption, it discards the trailing records, ensuring the system never recovers into an inconsistent state.
 
 ---
-**Instrumentation Audit Summary**:
-- **Sync Control**: `db_impl_write.cc:2264`
-- **Record Emission**: `log_writer.cc:320`
-- **Recovery Timing**: `db_impl_open.cc:1129`
-- **Batch Grouping**: `write_thread.cc:440`
-- **Integrity Validation**: `log_reader.cc:326`
+
+## 8. Conclusion & Instrumentation Audit
+Our experiments prove the WAL is a carefully balanced engine of tradeoffs between absolute safety, execution speed, and MTTR.
+
+**Code References (Instrumentation Locations):**
+- **Sync Control Policy:** `db_impl_write.cc:2264`
+- **Record Emission:** `log_writer.cc:320`
+- **Recovery Timing:** `db_impl_open.cc:1129`
+- **Batch Grouping:** `write_thread.cc:440`
+- **Integrity Validation:** `log_reader.cc:326`
