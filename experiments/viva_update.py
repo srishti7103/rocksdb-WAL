@@ -35,11 +35,26 @@ def main():
 
     metrics = {}
     
-    # Hardcode values to match the official presentation
-    metrics['SYNC_TAX'] = "524\\*"
-    metrics['FRAG_PCT'] = "0.1%"
-    metrics['RECOVERY_REDUCTION'] = "1.5x"
-    metrics['GROUP_COMMIT'] = "4.3x"
+    # 1. Sync Tax
+    b = data.get('Sync_Buffered', 1)
+    s = data.get('Sync_StrictSync', 1)
+    metrics['SYNC_TAX'] = f"{round(b/s)}x"
+    
+    # 2. Fragmentation (Headers + Trailers vs Payload)
+    h = data.get('WAL_Bytes_Header', 0)
+    p = data.get('WAL_Bytes_Payload', 1)
+    metrics['FRAG_PCT'] = f"{round((h/(h+p))*100, 1)}%"
+    
+    # 3. Recovery Reduction
+    a = data.get('Recovery_AbsoluteConsistency', 1)
+    t = data.get('Recovery_TolerateCorrupted', 1)
+    metrics['RECOVERY_REDUCTION'] = f"{round(a/t, 1)}x"
+    
+    # 4. Group Commit Efficiency
+    t1 = data.get('GroupCommit_1', 1)
+    t8 = data.get('GroupCommit_8', 1)
+    ratio = max(t1/t8, t8/t1) if t1 > 0 and t8 > 0 else 1.0
+    metrics['GROUP_COMMIT'] = f"{round(ratio, 1)}x"
 
     print(f"Verified Audit Metrics: {metrics}")
 

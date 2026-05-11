@@ -138,7 +138,7 @@ Individual insights derived from custom instrumentation telemetry.
 ### Study 1: Performance Tax of Durability
 <img src="./docs/images/exp1_throughput.png" width="400" />
 
-Insight: Strict synchronization (fsync) introduces a <!-- DYNAMIC:SYNC_TAX -->**524\***<!-- END_DYNAMIC --> performance floor limited by disk IOPS.
+Insight: Strict synchronization (fsync) introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> performance floor limited by disk IOPS.
 
 ### Study 2: Header Overhead and Fragmentation
 <img src="./docs/images/exp2_fragmentation.png" width="400" />

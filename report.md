@@ -50,7 +50,7 @@ We identified three critical design decisions within the codebase.
 ### Decision 1: Write Synchronization Policy
 - **Where is it implemented?** `db/db_impl/db_impl_write.cc` (Line 2264)
 - **What problem does it solve?** It gives the user control over how strictly data must be flushed to physical media.
-- **What tradeoff does it introduce?** **Safety vs. Speed.** Strict `fsync()` guarantees durability but introduces a <!-- DYNAMIC:SYNC_TAX -->**524\***<!-- END_DYNAMIC --> performance tax compared to OS buffering.
+- **What tradeoff does it introduce?** **Safety vs. Speed.** Strict `fsync()` guarantees durability but introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> performance tax compared to OS buffering.
 
 ### Decision 2: Group Commit Batching
 - **Where is it implemented?** `db/write_thread.cc` (Line 440)
@@ -77,7 +77,7 @@ We modified the system by injecting `std::atomic` counters into the core source 
 ### Study 1: The "Safety Tax"
 **Observation:** Compared strict synchronization vs. buffered writes.
 ![Sync Throughput Analysis](./docs/images/exp1_throughput.png)
-**Result:** Enabling `fsync()` introduces a <!-- DYNAMIC:SYNC_TAX -->**524\***<!-- END_DYNAMIC --> reduction in throughput.
+**Result:** Enabling `fsync()` introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> reduction in throughput.
 
 ### Study 2: Storage Efficiency (Fragmentation)
 **Observation:** Measured header bytes vs. payload bytes during sequential insertion.
