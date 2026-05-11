@@ -18,7 +18,35 @@ Because data is initially stored in a volatile in-memory structure called the **
 
 ---
 
-## 2. Instrumentation Audit: Deep Dive into the Codebase
+## 2. Project Architecture & Folder Structure
+
+Focused overview of edited and newly added components:
+
+```
+.
+├── db/                             [Core Source Code]
+│   ├── log_writer.cc               (Modified: Record telemetry)
+│   ├── log_reader.cc               (Modified: Recovery telemetry)
+│   ├── write_thread.cc             (Modified: Batching telemetry)
+│   ├── log_format.h                (Modified: Configurable block logic)
+│   └── db_impl/
+│       ├── db_impl_write.cc        (Modified: Sync-mode tracking)
+│       └── db_impl_open.cc         (Modified: Recovery timing)
+├── experiments/                    [New: Benchmark Suite]
+│   ├── Makefile                    (Automated build system)
+│   ├── sync_bench.cc               (Study 1: Performance vs Durability)
+│   ├── fragment_bench.cc           (Study 2: Overhead Analysis)
+│   ├── recovery_bench.cc           (Study 3: Consistency Modes)
+│   ├── batch_bench.cc              (Study 4: Concurrent Writing)
+│   ├── recovery_scaling_bench.cc   (Study 5: MTTR Scaling)
+├── comparison.ipynb                [New: Verification Notebook]
+├── report.md                       [Systems Engineering Report]
+└── README.md                       [Technical Overview]
+```
+
+---
+
+## 3. Instrumentation Audit: Deep Dive into the Codebase
 
 We modified the core execution path of RocksDB to extract high-fidelity telemetry. Below is an audit of the files we instrumented and their original roles within the system.
 
@@ -31,9 +59,23 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
 | `db/log_reader.cc` | Reads and validates WAL records during recovery/replay. | Instrumented CRC-32 checksum validation to detect torn writes and corruption. |
 | `db/log_format.h` | Defines the block-level structure of the WAL file. | Modified block-alignment constants to experiment with metadata fragmentation. |
 
+### Code Modification Statistics
+Quantitative breakdown of instrumentation changes across the core RocksDB system files:
+
+| Instrumented File | Additions (+) | Deletions (-) | Summary of Change |
+| :--- | :--- | :--- | :--- |
+| `db/log_writer.cc` | 19 | 0 | Fragmentation and payload atomic counters |
+| `db/log_writer.h` | 13 | 0 | External counter declarations |
+| `db/write_thread.h` | 19 | 0 | Batching and group commit metrics |
+| `db/write_thread.cc` | 10 | 0 | Group commit efficiency logic |
+| `db/db_impl/db_impl_write.cc` | 10 | 0 | Sync-mode performance counters |
+| `db/db_impl/db_impl_open.cc` | 13 | 0 | Recovery path timing and telemetry |
+| `db/log_reader.cc` | 5 | 0 | CRC mismatch and corruption detection |
+| `db/log_format.h` | 4 | 0 | Configurable block-level macro logic |
+
 ---
 
-## 3. How to Run & Reproduce (Ubuntu / WSL)
+## 4. How to Run & Reproduce (Ubuntu / WSL)
 
 ### Step 1: Dependencies & Environment
 Clone the repository inside the Linux filesystem (`~/`), **not** on `/mnt/c/`.
@@ -55,7 +97,7 @@ cd experiments && chmod +x viva_run.sh
 
 ---
 
-## 4. Experimental Evaluations: Hypothesis vs. Reality
+## 5. Experimental Evaluations: Hypothesis vs. Reality
 
 Our analysis centers on five studies that map empirical data to systems engineering theory.
 
@@ -101,7 +143,7 @@ Our analysis centers on five studies that map empirical data to systems engineer
 
 ---
 
-## 5. Failure Analysis & Data Integrity
+## 6. Failure Analysis & Data Integrity
 
 ### What happens if a component fails mid-write?
 If power is lost during a write operation, a **Torn Write** can occur where only half a sector is persisted to disk. RocksDB's WAL handles this through:
