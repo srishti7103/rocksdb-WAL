@@ -23,10 +23,38 @@ In a highly concurrent system, the WAL is often the **single serial bottleneck**
 
 ---
 
-## 2. Design Decisions: Tradeoff Analysis
+## 2. Project Architecture & Folder Structure
+
+Focused overview of edited and newly added components:
+
+```
+.
+├── db/                             [Core Source Code]
+│   ├── log_writer.cc               (Modified: Record telemetry)
+│   ├── log_reader.cc               (Modified: Recovery telemetry)
+│   ├── write_thread.cc             (Modified: Batching telemetry)
+│   ├── log_format.h                (Modified: Configurable block logic)
+│   └── db_impl/
+│       ├── db_impl_write.cc        (Modified: Sync-mode tracking)
+│       └── db_impl_open.cc         (Modified: Recovery timing)
+├── experiments/                    [New: Benchmark Suite]
+│   ├── Makefile                    (Automated build system)
+│   ├── sync_bench.cc               (Study 1: Performance vs Durability)
+│   ├── fragment_bench.cc           (Study 2: Overhead Analysis)
+│   ├── recovery_bench.cc           (Study 3: Consistency Modes)
+│   ├── batch_bench.cc              (Study 4: Concurrent Writing)
+│   ├── recovery_scaling_bench.cc   (Study 5: MTTR Scaling)
+├── comparison.ipynb                [New: Verification Notebook]
+├── report.md                       [Systems Engineering Report]
+└── README.md                       [Technical Overview]
+```
+
+---
+
+## 3. Design Decisions: Tradeoff Analysis
 We identified three key architectural decisions in the RocksDB WAL. For each, we analyzed the implementation, the problem solved, and the resulting tradeoff.
 
-| Design Decision | Implementation File | Problem Solved | Tradeoff |
+| Design Decision | Implementation File | Problem Solved | System Tradeoff |
 | :--- | :--- | :--- | :--- |
 | **Strict Sync Policy** | `db_impl_write.cc` | Total Data Loss Prevention | **Durability vs. Latency:** Ensures 0% data loss but introduces a **524x** performance tax. |
 | **Group Commit** | `write_thread.cc` | Serial I/O Bottleneck | **Throughput vs. Individual Latency:** Threads wait for a leader to batch writes, amortizing `fsync` costs but adding small wait times. |
@@ -34,7 +62,7 @@ We identified three key architectural decisions in the RocksDB WAL. For each, we
 
 ---
 
-## 3. How to Run & Reproduce (Ubuntu / WSL)
+## 4. How to Run & Reproduce (Ubuntu / WSL)
 
 ### Step 1: Dependencies & Environment
 Clone the repository inside the Linux filesystem (`~/`), **not** on `/mnt/c/`.
@@ -56,8 +84,8 @@ cd experiments && chmod +x viva_run.sh
 
 ---
 
-## 4. Instrumentation Audit: Code-Level Modification
-We modified the core execution path of RocksDB to extract high-fidelity telemetry.
+## 5. Instrumentation Audit: Code-Level Modification
+We modified the core execution path of RocksDB to extract high-fidelity telemetry. Below is a detailed audit of our code-level changes:
 
 | Instrumented File | Line(s) | Summary of Change | Technical Methodology |
 | :--- | :--- | :--- | :--- |
@@ -70,7 +98,21 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
 
 ---
 
-## 5. Experimental Evaluations: Hypothesis vs. Reality
+## 6. Quick Access: Documentation and Verification
+* [README.md](./README.md): Main project landing page.
+* [report.md](./report.md): Formal Systems Engineering report.
+* [comparison.ipynb](./comparison.ipynb): Data verification and analysis notebook.
+
+### Quick Access: Instrumented Files
+* [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
+* [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
+* [db/write_thread.cc](./db/write_thread.cc): Group commit efficiency logic.
+* [db/db_impl/db_impl_open.cc](./db/db_impl/db_impl_open.cc): Startup telemetry and recovery path.
+* [db/log_reader.cc](./db/log_reader.cc): CRC32 failure and corruption detection.
+
+---
+
+## 7. Experimental Evaluations: Hypothesis vs. Reality
 
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
 
@@ -81,7 +123,7 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
     ```
 *   **Method:** Compared `Buffered` (OS cache) writes vs. `Strict Sync` (hardware flush) writes.
 <div align="center">
-  <img src="./docs/images/exp1_throughput.png" width="500" />
+  <img src="./docs/images/exp1_throughput.png" width="400" />
 </div>
 
 *   **Key Insight:** Strict synchronization introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> performance floor.
@@ -96,7 +138,7 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
     ```
 *   **Method:** Measured `WAL_Bytes_Header` vs. `WAL_Bytes_Payload`.
 <div align="center">
-  <img src="./docs/images/exp2_fragmentation.png" width="500" />
+  <img src="./docs/images/exp2_fragmentation.png" width="400" />
 </div>
 
 *   **Key Insight:** Fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> metadata fragmentation.
@@ -113,7 +155,7 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
     ```
 *   **Method:** Measured recovery time across three consistency modes (`Absolute`, `Point-in-Time`, `Tolerate`).
 <div align="center">
-  <img src="./docs/images/exp3_recovery_mode.png" width="500" />
+  <img src="./docs/images/exp3_recovery_mode.png" width="400" />
 </div>
 
 *   **Key Insight:** Lenient recovery logic yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in MTTR.
@@ -128,7 +170,7 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
     ```
 *   **Method:** Scaled concurrency from 1 to 8 threads under synchronous write pressure.
 <div align="center">
-  <img src="./docs/images/exp4_group_commit.png" width="500" />
+  <img src="./docs/images/exp4_group_commit.png" width="400" />
 </div>
 
 *   **Key Insight:** Leader-follower batching delivers a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification.
@@ -143,7 +185,7 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
     ```
 *   **Method:** Measured replay time as the WAL volume scaled from 10k to 500k items.
 <div align="center">
-  <img src="./docs/images/exp5_scaling.png" width="500" />
+  <img src="./docs/images/exp5_scaling.png" width="400" />
 </div>
 
 *   **Key Insight:** WAL replay exhibits **Proportional Scaling**.
@@ -151,7 +193,7 @@ We modified the core execution path of RocksDB to extract high-fidelity telemetr
 
 ---
 
-## 7. Failure Analysis & Data Integrity
+## 8. Failure Analysis & Data Integrity
 
 ### What happens if a component fails mid-write?
 If power is lost during a write operation, a **Torn Write** can occur where only half a sector is persisted to disk. RocksDB's WAL handles this through:
@@ -160,7 +202,7 @@ If power is lost during a write operation, a **Torn Write** can occur where only
 
 ---
 
-## 8. Conclusion: Engineering the Tradeoff Curve
+## 9. Conclusion: Engineering the Tradeoff Curve
 
 Our instrumentation and analysis of the RocksDB Write-Ahead Log have demonstrated that data durability is never a "free" operation. The system is a carefully balanced engine of tradeoffs:
 
