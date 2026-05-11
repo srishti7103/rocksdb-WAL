@@ -19,9 +19,6 @@ RocksDB is a high-performance, embeddable key-value store optimized for fast sto
 ### The Role of the WAL
 The WAL acts as the system's "Source of Truth" during recovery. Because the MemTable is volatile, a crash results in the loss of all un-flushed data. By replaying the sequential records from the WAL, RocksDB can reconstruct the latest state of the database with high precision.
 
-### Deep Dive: The WAL as a Serial Bottleneck
-In highly concurrent environments, the WAL often becomes the primary serial bottleneck. While memory updates are lock-free and parallel, log writes are inherently sequential. This project investigates how RocksDB mitigates this bottleneck through **Group Commit** and **Block-Level Alignment**.
-
 ---
 
 ## 2. Project Architecture & Folder Structure
@@ -61,7 +58,7 @@ We analyzed three fundamental architectural decisions within the RocksDB WAL. Ea
 
 ---
 
-## 4. Environment Setup & Reproduction
+## 4. How to Run & Reproduce (Ubuntu / WSL)
 
 ### Step 1: Dependencies
 Clone the repository inside the Linux filesystem (`~/`) for optimal I/O performance.
@@ -84,20 +81,34 @@ cd experiments && chmod +x viva_run.sh
 ---
 
 ## 5. Instrumentation Audit: Code-Level Modification
-We modified the core execution path of RocksDB to extract internal telemetry.
+We modified the core execution path of RocksDB to extract high-fidelity telemetry. The following table contrasts the original implementation with our instrumented logic:
 
-| Instrumented File | Line(s) | Summary of Change | Technical Methodology |
+| Instrumented File | Original Implementation | Modified Implementation | Lines Added (+) |
 | :--- | :--- | :--- | :--- |
-| `db/log_writer.cc` | 130, 326 | Payload tracking | Injected `std::atomic` counters into `AddRecord` to track bytes emitted. |
-| `db/write_thread.cc` | 452, 576 | Batching efficiency | Instrumented the Leader-Follower handoff to measure amplification ratios. |
-| `db/db_impl/db_impl_write.cc` | 2267 | Durability tiering | Hooked into the sync-policy gate to categorize writes by durability level. |
-| `db/db_impl/db_impl_open.cc` | 1136 | Replay performance | Wrapped the `ReplayWAL` loop in high-resolution nanosecond timers. |
-| `db/log_reader.cc` | 327 | Corruption detection | Hooked into the checksum validation path to detect "Torn Writes." |
-| `db/log_format.h` | 54-58 | Block alignment logic | Modified 32KB alignment macros to observe fragmentation effects. |
+| **db/log_writer.cc** | Sequential record emission without internal size tracking. | Injected `fetch_add` logic into `AddRecord` to track payload vs metadata bytes. | **+19** |
+| **db/write_thread.cc** | Group Commit queue management without batch-size exposure. | Captured `new_batch_size` within the leader-follower handoff for efficiency analysis. | **+10** |
+| **db/db_impl/db_impl_write.cc** | Standard write entry point that ignored durability-tier categorization. | Added conditional hooks to count `options.sync` vs `buffered` write events. | **+10** |
+| **db/db_impl/db_impl_open.cc** | Replayed WAL files during startup without performance measurement. | Wrapped the `ReplayWAL` loop in high-resolution nanosecond timers to calculate MTTR. | **+13** |
+| **db/log_reader.cc** | Validated records without exposing corruption frequency to the engine. | Hooked into the checksum verification path to count and log data integrity failures. | **+5** |
+| **db/log_format.h** | Hardcoded 32KB block alignment constant. | Converted the block size into a configurable macro to simulate fragmentation stress. | **+4** |
 
 ---
 
-## 6. Experimental Evaluation
+## 6. Quick Access: Documentation and Verification
+* [README.md](./README.md): Main project landing page.
+* [report.md](./report.md): Formal Systems Engineering report.
+* [comparison.ipynb](./comparison.ipynb): Data verification and analysis notebook.
+
+### Quick Access: Instrumented Files
+* [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
+* [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
+* [db/write_thread.cc](./db/write_thread.cc): Group commit efficiency logic.
+* [db/db_impl/db_impl_open.cc](./db/db_impl/db_impl_open.cc): Startup telemetry and recovery path.
+* [db/log_reader.cc](./db/log_reader.cc): CRC32 failure and corruption detection.
+
+---
+
+## 7. Experimental Evaluation
 
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
 
@@ -141,7 +152,7 @@ We modified the core execution path of RocksDB to extract internal telemetry.
 
 ---
 
-## 7. Failure Analysis & Data Integrity
+## 8. Failure Analysis & Data Integrity
 
 If a system failure occurs during a write, a **Torn Write** may result. RocksDB mitigates this via:
 1.  **CRC-32 Checksums:** Recalculated during recovery to detect bit-level corruption.
@@ -149,12 +160,13 @@ If a system failure occurs during a write, a **Torn Write** may result. RocksDB 
 
 ---
 
-## 8. Conclusion: Engineering the Tradeoff Curve
+## 9. Conclusion: Engineering the Tradeoff Curve
 
 Our analysis proves that the RocksDB WAL is a carefully balanced engine of tradeoffs. We have quantified the **Durability Barrier** (524x), demonstrated the power of **Amortized I/O** via batching (4.3x gain), and mapped the **Recovery Scaling** (O(N)) required for predictable availability.
 
 ---
 
 ## Credits
+Built by **Sigma & Spark**: where B.Sc. Statistics meets Leveled Sparks 
+
 **Srishti Lamba**: 202518003 | **Nikita Sharma**: 202518038
-**Sigma & Spark**

@@ -26,14 +26,16 @@ We identified three fundamental design decisions that define the RocksDB WAL sub
 ---
 
 ## 3. Instrumentation Methodology
-To analyze these principles, we modified the core RocksDB C++ source to extract high-fidelity telemetry.
+To move beyond high-level observation, we modified the RocksDB source code to extract internal telemetry. The table below outlines the specific modifications made to the codebase:
 
-### Modified Components & Line References
-*   **Write Path Path (`db_impl_write.cc:2267`):** Hooked into the sync gate to track hardware-level synchronization frequency.
-*   **Concurrency Manager (`write_thread.cc:452,576`):** Captured batch-group metrics to quantify Group Commit efficiency.
-*   **Serialization Logic (`log_writer.cc:130,326`):** Instrumented record headers to analyze fragmentation and metadata overhead.
-*   **Recovery Engine (`db_impl_open.cc:1136`):** Wrapped the WAL replay loop in high-resolution timers to measure startup performance.
-*   **Integrity Guard (`log_reader.cc:327`):** Monitored the checksum validation path to detect and log "Torn Writes."
+| Instrumented File | Original Implementation | Modified Implementation | Lines Added (+) |
+| :--- | :--- | :--- | :--- |
+| **db/log_writer.cc** | Sequential record emission without internal size tracking. | Injected `fetch_add` logic into `AddRecord` to track payload vs metadata bytes. | **+19** |
+| **db/write_thread.cc** | Group Commit queue management without batch-size exposure. | Captured `new_batch_size` within the leader-follower handoff for efficiency analysis. | **+10** |
+| **db/db_impl/db_impl_write.cc** | Standard write entry point that ignored durability-tier categorization. | Added conditional hooks to count `options.sync` vs `buffered` write events. | **+10** |
+| **db/db_impl/db_impl_open.cc** | Replayed WAL files during startup without performance measurement. | Wrapped the `ReplayWAL` loop in high-resolution nanosecond timers to calculate MTTR. | **+13** |
+| **db/log_reader.cc** | Validated records without exposing corruption frequency to the engine. | Hooked into the checksum verification path to count and log data integrity failures. | **+5** |
+| **db/log_format.h** | Hardcoded 32KB block alignment constant. | Converted the block size into a configurable macro to simulate fragmentation stress. | **+4** |
 
 ---
 
