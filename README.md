@@ -75,7 +75,21 @@ Quantitative breakdown of instrumentation changes across the core RocksDB system
 
 ---
 
-## 4. How to Run & Reproduce (Ubuntu / WSL)
+## 4. Quick Access: Documentation and Verification
+* [README.md](./README.md): Main project landing page.
+* [report.md](./report.md): Formal Systems Engineering report.
+* [comparison.ipynb](./comparison.ipynb): Data verification and analysis notebook.
+
+### Quick Access: Instrumented Files
+* [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
+* [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
+* [db/write_thread.cc](./db/write_thread.cc): Group commit efficiency logic.
+* [db/db_impl/db_impl_open.cc](./db/db_impl/db_impl_open.cc): Startup telemetry and recovery path.
+* [db/log_reader.cc](./db/log_reader.cc): CRC32 failure and corruption detection.
+
+---
+
+## 5. How to Run & Reproduce (Ubuntu / WSL)
 
 ### Step 1: Dependencies & Environment
 Clone the repository inside the Linux filesystem (`~/`), **not** on `/mnt/c/`.
@@ -97,7 +111,7 @@ cd experiments && chmod +x viva_run.sh
 
 ---
 
-## 5. Experimental Evaluations: Hypothesis vs. Reality
+## 6. Experimental Evaluations: Hypothesis vs. Reality
 
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
 
@@ -146,7 +160,7 @@ cd experiments && chmod +x viva_run.sh
 
 ---
 
-## 6. Failure Analysis & Data Integrity
+## 7. Failure Analysis & Data Integrity
 
 ### What happens if a component fails mid-write?
 If power is lost during a write operation, a **Torn Write** can occur where only half a sector is persisted to disk. RocksDB's WAL handles this through:
