@@ -99,45 +99,48 @@ cd experiments && chmod +x viva_run.sh
 
 ## 5. Experimental Evaluations: Hypothesis vs. Reality
 
-Our analysis centers on five studies that map empirical data to systems engineering theory.
-
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
-<img src="./docs/images/exp1_throughput.png" width="400" />
 
 *   **Hypothesis:** Enabling strict `fsync()` for every write will decrease throughput by several orders of magnitude as the system becomes bound by disk I/O latency rather than CPU/RAM speed.
 *   **Method:** Compared `Buffered` (OS cache) writes vs. `Strict Sync` (hardware flush) writes.
+<img src="./docs/images/exp1_throughput.png" width="400" />
+
 *   **Key Insight:** Strict synchronization introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> performance floor.
 *   **Theoretical Backing:** Disk IOPS are bounded by mechanical/electronic latency (ms range), whereas RAM access is nanosecond-scale.
 
 ### Study 2: Storage Efficiency (Fragmentation)
-<img src="./docs/images/exp2_fragmentation.png" width="400" />
 
 *   **Hypothesis:** Maintaining fixed 32KB block alignment for the WAL (to optimize hardware page reads) will introduce a constant metadata overhead proportional to the record frequency.
 *   **Method:** Measured `WAL_Bytes_Header` vs. `WAL_Bytes_Payload`.
+<img src="./docs/images/exp2_fragmentation.png" width="400" />
+
 *   **Key Insight:** Fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> metadata fragmentation.
 *   **Theoretical Backing:** Internal fragmentation is an unavoidable byproduct of data alignment requirements for efficient block storage access.
 
 ### Study 3: Recovery Reduction (MTTR Analysis)
-<img src="./docs/images/exp3_recovery_mode.png" width="400" />
 
 *   **Hypothesis:** Sacrificing strict consistency checks during startup (`kTolerateCorruptedTailRecords`) will significantly reduce the Mean Time To Recovery (MTTR).
 *   **Method:** Measured recovery time across three consistency modes (`Absolute`, `Point-in-Time`, `Tolerate`).
+<img src="./docs/images/exp3_recovery_mode.png" width="400" />
+
 *   **Key Insight:** Lenient recovery logic yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in MTTR.
 *   **Theoretical Backing:** Reducing the verification work (checksumming) and IOPS required during log replay directly optimizes the critical path of startup availability.
 
 ### Study 4: Group Commit Efficiency (Batching)
-<img src="./docs/images/exp4_group_commit.png" width="400" />
 
 *   **Hypothesis:** Under high thread contention, throughput will scale non-linearly as multiple threads are batched into a single "Group Commit" leader.
 *   **Method:** Scaled concurrency from 1 to 8 threads under synchronous write pressure.
+<img src="./docs/images/exp4_group_commit.png" width="400" />
+
 *   **Key Insight:** Leader-follower batching delivers a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification.
 *   **Theoretical Backing:** Amdahl's Law is mitigated here by converting parallel synchronization contention into a single sequential batch operation.
 
 ### Study 5: Recovery Scaling (Volume Analysis)
-<img src="./docs/images/exp5_scaling.png" width="400" />
 
 *   **Hypothesis:** Recovery time will exhibit a linear (O(N)) relationship with the volume of data stored in the WAL.
 *   **Method:** Measured replay time as the WAL volume scaled from 10k to 500k items.
+<img src="./docs/images/exp5_scaling.png" width="400" />
+
 *   **Key Insight:** WAL replay exhibits **Proportional Scaling**.
 *   **Theoretical Backing:** Replaying a log is inherently sequential; unless the log is truncated or partitioned, recovery effort grows linearly with log length.
 
