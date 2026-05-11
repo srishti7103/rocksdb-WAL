@@ -141,6 +141,10 @@ cd experiments && chmod +x viva_run.sh
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
 
 *   **Hypothesis:** Enabling strict `fsync()` for every write will decrease throughput by several orders of magnitude as the system becomes bound by disk I/O latency rather than CPU/RAM speed.
+*   **Instrumentation:**
+    ```cpp
+    if (options.sync) rocksdb::WAL_Sync_Control.fetch_add(1);
+    ```
 *   **Method:** Compared `Buffered` (OS cache) writes vs. `Strict Sync` (hardware flush) writes.
 <img src="./docs/images/exp1_throughput.png" width="400" />
 
@@ -150,6 +154,10 @@ cd experiments && chmod +x viva_run.sh
 ### Study 2: Storage Efficiency (Fragmentation)
 
 *   **Hypothesis:** Maintaining fixed 32KB block alignment for the WAL (to optimize hardware page reads) will introduce a constant metadata overhead proportional to the record frequency.
+*   **Instrumentation:**
+    ```cpp
+    rocksdb::WAL_Bytes_Payload.fetch_add(payload_size);
+    ```
 *   **Method:** Measured `WAL_Bytes_Header` vs. `WAL_Bytes_Payload`.
 <img src="./docs/images/exp2_fragmentation.png" width="400" />
 
@@ -159,6 +167,12 @@ cd experiments && chmod +x viva_run.sh
 ### Study 3: Recovery Reduction (MTTR Analysis)
 
 *   **Hypothesis:** Sacrificing strict consistency checks during startup (`kTolerateCorruptedTailRecords`) will significantly reduce the Mean Time To Recovery (MTTR).
+*   **Instrumentation:**
+    ```cpp
+    auto start_t = Env::Default()->NowNanos();
+    s = ReplayWAL(options, ...);
+    rocksdb::WAL_Recovery_Mode.fetch_add(Env::Default()->NowNanos() - start_t);
+    ```
 *   **Method:** Measured recovery time across three consistency modes (`Absolute`, `Point-in-Time`, `Tolerate`).
 <img src="./docs/images/exp3_recovery_mode.png" width="400" />
 
@@ -168,6 +182,10 @@ cd experiments && chmod +x viva_run.sh
 ### Study 4: Group Commit Efficiency (Batching)
 
 *   **Hypothesis:** Under high thread contention, throughput will scale non-linearly as multiple threads are batched into a single "Group Commit" leader.
+*   **Instrumentation:**
+    ```cpp
+    rocksdb::WAL_Group_Commit.fetch_add(new_batch_size);
+    ```
 *   **Method:** Scaled concurrency from 1 to 8 threads under synchronous write pressure.
 <img src="./docs/images/exp4_group_commit.png" width="400" />
 
@@ -177,6 +195,11 @@ cd experiments && chmod +x viva_run.sh
 ### Study 5: Recovery Scaling (Volume Analysis)
 
 *   **Hypothesis:** Recovery time will exhibit a linear (O(N)) relationship with the volume of data stored in the WAL.
+*   **Instrumentation:**
+    ```cpp
+    // Timing full replay across scaled log volumes
+    auto t = ReplayWAL(options, ...); 
+    ```
 *   **Method:** Measured replay time as the WAL volume scaled from 10k to 500k items.
 <img src="./docs/images/exp5_scaling.png" width="400" />
 
