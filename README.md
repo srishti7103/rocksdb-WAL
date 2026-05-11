@@ -6,26 +6,25 @@ This project provides a deep-dive instrumentation and systems engineering analys
 
 ---
 
-## 1. System Overview: RocksDB & The WAL
+## 1. Technical Foundation & Architecture
 
-### What is RocksDB? (Concept Mapping)
-RocksDB is a high-performance, embeddable key-value store based on the **Log-Structured Merge-Tree (LSM-Tree)** architecture. 
-*   **Storage (Concept 1):** Unlike B-Trees, RocksDB uses an LSM-tree to transform random writes into sequential I/O by buffering updates in memory before flushing them to disk as immutable sorted files (SSTs).
-*   **Ingestion (Concept 2):** High-speed data ingestion is achieved by prioritizing write throughput.
-*   **Reliability (Concept 3):** The **Write-Ahead Log (WAL)** ensures crash consistency by acting as a persistent append-only log of every transaction.
-*   **Fault Tolerance (Concept 4):** Every log record is protected by **CRC-32 checksums** to detect and handle torn writes or hardware failure.
+### Architectural Overview
+RocksDB is a high-performance, embeddable key-value store optimized for fast storage environments. Our analysis focuses on its core design principles:
+
+*   **LSM-Tree Storage Core:** Unlike traditional B-Trees, RocksDB utilizes a Log-Structured Merge-Tree to transform random writes into sequential I/O by buffering updates in volatile memory (MemTable) before persisting them as immutable sorted files (SSTs).
+*   **Write-Optimized Data Ingestion:** Throughput is prioritized by deferring disk-intensive compaction tasks, allowing the engine to handle massive ingestion rates with minimal stall.
+*   **Append-Only Durability (WAL):** To ensure zero data loss during system failures, every transaction is recorded in a persistent Write-Ahead Log before being applied to the MemTable.
+*   **Atomic Crash Consistency:** The WAL utilizes CRC-32 checksums and fragmented record types to detect and mitigate "Torn Writes," ensuring the database never recovers into an inconsistent state.
 
 ### The Role of the WAL
-Because data is initially stored in a volatile in-memory structure called the **MemTable**, a system crash would result in total data loss. The WAL ensures that every write is appended to non-volatile storage *before* it is applied to memory, allowing the engine to reconstruct state during recovery.
+The WAL acts as the system's "Source of Truth" during recovery. Because the MemTable is volatile, a crash results in the loss of all un-flushed data. By replaying the sequential records from the WAL, RocksDB can reconstruct the latest state of the database with high precision.
 
 ### Deep Dive: The WAL as a Serial Bottleneck
-In a highly concurrent system, the WAL is often the **single serial bottleneck**. While memory can be updated in parallel, the log is inherently sequential. This project analyzes how RocksDB mitigates this bottleneck through techniques like **Group Commit** and **Fixed-Block Alignment**.
+In highly concurrent environments, the WAL often becomes the primary serial bottleneck. While memory updates are lock-free and parallel, log writes are inherently sequential. This project investigates how RocksDB mitigates this bottleneck through **Group Commit** and **Block-Level Alignment**.
 
 ---
 
 ## 2. Project Architecture & Folder Structure
-
-Focused overview of edited and newly added components:
 
 ```
 .
@@ -51,21 +50,21 @@ Focused overview of edited and newly added components:
 
 ---
 
-## 3. Design Decisions: Tradeoff Analysis
-We identified three key architectural decisions in the RocksDB WAL. For each, we analyzed the implementation, the problem solved, and the resulting tradeoff.
+## 3. Design Decisions & System Tradeoffs
+We analyzed three fundamental architectural decisions within the RocksDB WAL. Each represents a critical engineering choice balancing performance against safety.
 
 | Design Decision | Implementation File | Problem Solved | System Tradeoff |
 | :--- | :--- | :--- | :--- |
-| **Strict Sync Policy** | `db_impl_write.cc` | Total Data Loss Prevention | **Durability vs. Latency:** Ensures 0% data loss but introduces a **524x** performance tax. |
-| **Group Commit** | `write_thread.cc` | Serial I/O Bottleneck | **Throughput vs. Individual Latency:** Threads wait for a leader to batch writes, amortizing `fsync` costs but adding small wait times. |
-| **Fixed-Block Alignment** | `log_writer.cc` | Hardware Page Alignment | **IOPS Efficiency vs. Space:** Aligns writes to 32KB hardware pages to minimize read/write amplification, costing **0.1%** in space. |
+| **Strict Sync Policy** | `db_impl_write.cc` | Data Integrity Guarantee | **Durability vs. Latency:** Absolute safety introduces a measurable **524x** performance floor. |
+| **Group Commit** | `write_thread.cc` | Sequential I/O Bottleneck | **Throughput vs. Thread Latency:** Batching multiple writes into one I/O cycle amortizes `fsync` costs but adds minor wait-times. |
+| **Fixed-Block Alignment** | `log_writer.cc` | Hardware I/O Optimization | **Efficiency vs. Space:** Aligns writes to 32KB hardware pages to minimize write amplification, with a negligible **0.1%** overhead. |
 
 ---
 
-## 4. How to Run & Reproduce (Ubuntu / WSL)
+## 4. Environment Setup & Reproduction
 
-### Step 1: Dependencies & Environment
-Clone the repository inside the Linux filesystem (`~/`), **not** on `/mnt/c/`.
+### Step 1: Dependencies
+Clone the repository inside the Linux filesystem (`~/`) for optimal I/O performance.
 ```bash
 sudo apt-get update && sudo apt-get install -y build-essential libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev libgflags-dev g++
 git clone https://github.com/srishti7103/rocksdb-WAL.git && cd rocksdb-WAL
@@ -74,10 +73,10 @@ git checkout wal-experiments
 
 ### Step 2: Build & Execution
 ```bash
-# Build the core library (takes 10-20 mins)
+# Compile core library
 make static_lib -j$(nproc)
 
-# Run the automated benchmark suite
+# Execute automated benchmark suite
 cd experiments && chmod +x viva_run.sh
 ./viva_run.sh
 ```
@@ -85,136 +84,77 @@ cd experiments && chmod +x viva_run.sh
 ---
 
 ## 5. Instrumentation Audit: Code-Level Modification
-We modified the core execution path of RocksDB to extract high-fidelity telemetry. Below is a detailed audit of our code-level changes:
+We modified the core execution path of RocksDB to extract internal telemetry.
 
 | Instrumented File | Line(s) | Summary of Change | Technical Methodology |
 | :--- | :--- | :--- | :--- |
-| `db/log_writer.cc` | 130, 326 | Fragmentation & payload tracking | Injected `std::atomic` counters into `AddRecord` to track bytes emitted vs payload. |
-| `db/write_thread.cc` | 452, 576 | Group commit efficiency logic | Instrumented the Leader-Follower handoff to measure batch amplification ratios. |
-| `db/db_impl/db_impl_write.cc` | 2267 | Sync-mode performance counters | Hooked into the sync-policy gate to categorize writes by durability tier. |
-| `db/db_impl/db_impl_open.cc` | 1136 | Recovery path timing and telemetry | Wrapped the `ReplayWAL` loop in high-resolution nanosecond timers. |
-| `db/log_reader.cc` | 327 | CRC failure detection | Hooked into the checksum validation path to detect and log "Torn Writes." |
-| `db/log_format.h` | 54-58 | Configurable block-level macro logic | Modified 32KB block alignment macros to observe fragmentation effects. |
+| `db/log_writer.cc` | 130, 326 | Payload tracking | Injected `std::atomic` counters into `AddRecord` to track bytes emitted. |
+| `db/write_thread.cc` | 452, 576 | Batching efficiency | Instrumented the Leader-Follower handoff to measure amplification ratios. |
+| `db/db_impl/db_impl_write.cc` | 2267 | Durability tiering | Hooked into the sync-policy gate to categorize writes by durability level. |
+| `db/db_impl/db_impl_open.cc` | 1136 | Replay performance | Wrapped the `ReplayWAL` loop in high-resolution nanosecond timers. |
+| `db/log_reader.cc` | 327 | Corruption detection | Hooked into the checksum validation path to detect "Torn Writes." |
+| `db/log_format.h` | 54-58 | Block alignment logic | Modified 32KB alignment macros to observe fragmentation effects. |
 
 ---
 
-## 6. Quick Access: Documentation and Verification
-* [README.md](./README.md): Main project landing page.
-* [report.md](./report.md): Formal Systems Engineering report.
-* [comparison.ipynb](./comparison.ipynb): Data verification and analysis notebook.
-
-### Quick Access: Instrumented Files
-* [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
-* [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
-* [db/write_thread.cc](./db/write_thread.cc): Group commit efficiency logic.
-* [db/db_impl/db_impl_open.cc](./db/db_impl/db_impl_open.cc): Startup telemetry and recovery path.
-* [db/log_reader.cc](./db/log_reader.cc): CRC32 failure and corruption detection.
-
----
-
-## 7. Experimental Evaluations: Hypothesis vs. Reality
+## 6. Experimental Evaluation
 
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
 
-*   **Hypothesis:** Enabling strict `fsync()` for every write will decrease throughput by several orders of magnitude as the system becomes bound by disk I/O latency rather than CPU/RAM speed.
-*   **Instrumentation Point (`db_impl_write.cc:2267`):**
-    ```cpp
-    if (options.sync) rocksdb::WAL_Sync_Control.fetch_add(1, std::memory_order_relaxed);
-    ```
-*   **Method:** Compared `Buffered` (OS cache) writes vs. `Strict Sync` (hardware flush) writes.
+*   **Hypothesis:** Mandatory hardware synchronization will cause an exponential drop in throughput as the bottleneck shifts from RAM to Disk.
+*   **Result:** Strict synchronization introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> performance floor.
 <div align="center">
   <img src="./docs/images/exp1_throughput.png" width="400" />
 </div>
 
-*   **Key Insight:** Strict synchronization introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> performance floor.
-*   **Theoretical Backing:** Disk IOPS are bounded by mechanical/electronic latency (ms range), whereas RAM access is nanosecond-scale.
-
 ### Study 2: Storage Efficiency (Fragmentation)
 
-*   **Hypothesis:** Maintaining fixed 32KB block alignment for the WAL (to optimize hardware page reads) will introduce a constant metadata overhead proportional to the record frequency.
-*   **Instrumentation Point (`log_writer.cc:130,326`):**
-    ```cpp
-    rocksdb::WAL_Bytes_Payload.fetch_add(payload_size, std::memory_order_relaxed);
-    ```
-*   **Method:** Measured `WAL_Bytes_Header` vs. `WAL_Bytes_Payload`.
+*   **Hypothesis:** Maintaining fixed 32KB alignment will introduce a metadata overhead proportional to record frequency.
+*   **Result:** Fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> internal fragmentation.
 <div align="center">
   <img src="./docs/images/exp2_fragmentation.png" width="400" />
 </div>
 
-*   **Key Insight:** Fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> metadata fragmentation.
-*   **Theoretical Backing:** Internal fragmentation is an unavoidable byproduct of data alignment requirements for efficient block storage access.
-
 ### Study 3: Recovery Reduction (MTTR Analysis)
 
-*   **Hypothesis:** Sacrificing strict consistency checks during startup (`kTolerateCorruptedTailRecords`) will significantly reduce the Mean Time To Recovery (MTTR).
-*   **Instrumentation Point (`db_impl_open.cc:1136`):**
-    ```cpp
-    auto start_t = Env::Default()->NowNanos();
-    s = ReplayWAL(options, ...);
-    rocksdb::WAL_Recovery_Mode.fetch_add(Env::Default()->NowNanos() - start_t);
-    ```
-*   **Method:** Measured recovery time across three consistency modes (`Absolute`, `Point-in-Time`, `Tolerate`).
+*   **Hypothesis:** Lenient consistency checks during startup will significantly reduce the Mean Time To Recovery (MTTR).
+*   **Result:** Lenient recovery yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in MTTR.
 <div align="center">
   <img src="./docs/images/exp3_recovery_mode.png" width="400" />
 </div>
 
-*   **Key Insight:** Lenient recovery logic yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in MTTR.
-*   **Theoretical Backing:** Reducing the verification work (checksumming) and IOPS required during log replay directly optimizes the critical path of startup availability.
-
 ### Study 4: Group Commit Efficiency (Batching)
 
-*   **Hypothesis:** Under high thread contention, throughput will scale non-linearly as multiple threads are batched into a single "Group Commit" leader.
-*   **Instrumentation Point (`write_thread.cc:452,576`):**
-    ```cpp
-    rocksdb::WAL_Group_Commit.fetch_add(new_batch_size, std::memory_order_relaxed);
-    ```
-*   **Method:** Scaled concurrency from 1 to 8 threads under synchronous write pressure.
+*   **Hypothesis:** Throughput will scale non-linearly with concurrency as multiple threads are batched into a single I/O operation.
+*   **Result:** Leader-follower batching delivers a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification.
 <div align="center">
   <img src="./docs/images/exp4_group_commit.png" width="400" />
 </div>
 
-*   **Key Insight:** Leader-follower batching delivers a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification.
-*   **Theoretical Backing:** Amdahl's Law is mitigated here by converting parallel synchronization contention into a single sequential batch operation.
-
 ### Study 5: Recovery Scaling (Volume Analysis)
 
-*   **Hypothesis:** Recovery time will exhibit a linear (O(N)) relationship with the volume of data stored in the WAL.
-*   **Instrumentation Point (`db_impl_open.cc:1136`):**
-    ```cpp
-    auto t = ReplayWAL(options, ...); // Replay timing across volumes
-    ```
-*   **Method:** Measured replay time as the WAL volume scaled from 10k to 500k items.
+*   **Hypothesis:** Recovery time will exhibit a linear relationship with the volume of data stored in the WAL.
+*   **Result:** Replay duration exhibits **Proportional Scaling (O(N))**.
 <div align="center">
   <img src="./docs/images/exp5_scaling.png" width="400" />
 </div>
 
-*   **Key Insight:** WAL replay exhibits **Proportional Scaling**.
-*   **Theoretical Backing:** Replaying a log is inherently sequential; unless the log is truncated or partitioned, recovery effort grows linearly with log length.
+---
+
+## 7. Failure Analysis & Data Integrity
+
+If a system failure occurs during a write, a **Torn Write** may result. RocksDB mitigates this via:
+1.  **CRC-32 Checksums:** Recalculated during recovery to detect bit-level corruption.
+2.  **Fragmented Replay:** The `log::Reader` identifies partial records and safely discards corrupted tail fragments, ensuring the engine remains consistent.
 
 ---
 
-## 8. Failure Analysis & Data Integrity
+## 8. Conclusion: Engineering the Tradeoff Curve
 
-### What happens if a component fails mid-write?
-If power is lost during a write operation, a **Torn Write** can occur where only half a sector is persisted to disk. RocksDB's WAL handles this through:
-1.  **CRC-32 Checksums:** Every log record is checksummed. If the checksum on disk doesn't match the recalculated checksum during recovery, the record is flagged.
-2.  **Fragmented Replay:** Using the `log::Reader` we instrumented, the system can detect the exact point of failure and either halt (Strict mode) or discard the trailing corrupted record (Tolerate mode), ensuring the database never recovers into an "impossible" state.
-
----
-
-## 9. Conclusion: Engineering the Tradeoff Curve
-
-Our instrumentation and analysis of the RocksDB Write-Ahead Log have demonstrated that data durability is never a "free" operation. The system is a carefully balanced engine of tradeoffs:
-
-1.  **The Durability Barrier:** The **524x** performance gap between buffered and synchronous writes represents the physical limits of current non-volatile storage technologies.
-2.  **Concurrency as a Lever:** Through **Group Commit**, RocksDB successfully amortizes the cost of this barrier, turning thread contention into a performance multiplier (yielding **4.3x** amplification).
-3.  **Predictable Resilience:** Our recovery analysis proves that while MTTR scales linearly with log volume, it can be tuned via recovery policies to achieve a **1.5x** improvement in availability.
-
-In conclusion, every parameter of the WAL—from block alignment to sync policy—is a precise engineering dial. This project successfully mapped those dials to empirical data, providing a high-fidelity audit of one of the world's most performant storage engines.
+Our analysis proves that the RocksDB WAL is a carefully balanced engine of tradeoffs. We have quantified the **Durability Barrier** (524x), demonstrated the power of **Amortized I/O** via batching (4.3x gain), and mapped the **Recovery Scaling** (O(N)) required for predictable availability.
 
 ---
 
 ## Credits
-Built by **Sigma & Spark**: where B.Sc. Statistics meets Leveled Sparks 
-
 **Srishti Lamba**: 202518003 | **Nikita Sharma**: 202518038
+**Sigma & Spark**
