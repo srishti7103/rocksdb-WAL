@@ -46,75 +46,7 @@ Focused overview of edited and newly added components:
 
 ---
 
-## 3. Instrumentation Audit: Deep Dive into the Codebase
-
-We modified the core execution path of RocksDB to extract high-fidelity telemetry. Below is an audit of the files we instrumented and their original roles within the system.
-
-| Instrumented File | Original Role in RocksDB | Our Instrumentation Contribution |
-| :--- | :--- | :--- |
-| `db/log_writer.cc` | Handles the physical serialization of records to the log file. | Injected atomic counters to track the ratio of payload bytes vs. header metadata overhead. |
-| `db/write_thread.cc` | Manages concurrency and the "Group Commit" batching logic. | Captured batch sizes and execution timing to measure multi-threaded throughput amplification. |
-| `db/db_impl/db_impl_write.cc` | The main entry point for the write path, managing sync policies. | Tracked the performance impact of `fsync()` vs. OS-level buffering. |
-| `db/db_impl/db_impl_open.cc` | Manages database startup and WAL recovery initialization. | Added high-resolution timers to the recovery replay loop to measure MTTR. |
-| `db/log_reader.cc` | Reads and validates WAL records during recovery/replay. | Instrumented CRC-32 checksum validation to detect torn writes and corruption. |
-| `db/log_format.h` | Defines the block-level structure of the WAL file. | Modified block-alignment constants to experiment with metadata fragmentation. |
-
-### Code Modification Statistics
-Quantitative breakdown of instrumentation changes across the core RocksDB system files:
-
-| Instrumented File | Additions (+) | Deletions (-) | Summary of Change |
-| :--- | :--- | :--- | :--- |
-| `db/log_writer.cc` | 19 | 0 | Fragmentation and payload atomic counters |
-| `db/log_writer.h` | 13 | 0 | External counter declarations |
-| `db/write_thread.h` | 19 | 0 | Batching and group commit metrics |
-| `db/write_thread.cc` | 10 | 0 | Group commit efficiency logic |
-| `db/db_impl/db_impl_write.cc` | 10 | 0 | Sync-mode performance counters |
-| `db/db_impl/db_impl_open.cc` | 13 | 0 | Recovery path timing and telemetry |
-| `db/log_reader.cc` | 5 | 0 | CRC mismatch and corruption detection |
-| `db/log_format.h` | 4 | 0 | Configurable block-level macro logic |
-
-### Code Instrumentation Highlights
-To ensure zero-impact telemetry, we used `std::atomic` counters injected directly into the critical execution path.
-
-**1. Batching Hook (`db/write_thread.cc`):**
-```cpp
-// Capturing real-time batch sizes during Group Commit
-rocksdb::WAL_Group_Commit.fetch_add(new_batch_size, std::memory_order_relaxed);
-```
-
-**2. Sync Boundary (`db/db_impl/db_impl_write.cc`):**
-```cpp
-// Tracking fsync frequency to measure the 'Safety Tax'
-if (options.sync) {
-    rocksdb::WAL_Sync_Control.fetch_add(1, std::memory_order_relaxed);
-}
-```
-
-**3. Recovery Timer (`db/db_impl/db_impl_open.cc`):**
-```cpp
-// Precise MTTR measurement for recovery scaling
-auto start_t = Env::Default()->NowNanos();
-s = ReplayWAL(options, ...);
-rocksdb::WAL_Recovery_Mode.fetch_add(Env::Default()->NowNanos() - start_t);
-```
-
----
-
-## 4. Quick Access: Documentation and Verification
-* [README.md](./README.md): Main project landing page.
-* [report.md](./report.md): Formal Systems Engineering report.
-* [comparison.ipynb](./comparison.ipynb): Data verification and analysis notebook.
-
-### Quick Access: Instrumented Files
-* [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
-* [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
-* [db/write_thread.cc](./db/write_thread.cc): Group commit efficiency logic.
-* [db/db_impl/db_impl_open.cc](./db/db_impl/db_impl_open.cc): Startup telemetry and recovery path.
-* [db/log_reader.cc](./db/log_reader.cc): CRC32 failure and corruption detection.
-
----
-
-## 5. How to Run & Reproduce (Ubuntu / WSL)
+## 3. How to Run & Reproduce (Ubuntu / WSL)
 
 ### Step 1: Dependencies & Environment
 Clone the repository inside the Linux filesystem (`~/`), **not** on `/mnt/c/`.
@@ -136,13 +68,43 @@ cd experiments && chmod +x viva_run.sh
 
 ---
 
+## 4. Instrumentation Audit: Deep Dive into the Codebase
+
+We modified the core execution path of RocksDB to extract high-fidelity telemetry. Below is a breakdown of instrumentation changes across the core RocksDB system:
+
+| Instrumented File | Additions (+) | Summary of Change | Original Role |
+| :--- | :--- | :--- | :--- |
+| `db/log_writer.cc` | 19 | Fragmentation & payload atomic counters | Physical record serialization |
+| `db/write_thread.cc` | 10 | Group commit efficiency logic | Concurrency & Leader management |
+| `db/db_impl/db_impl_write.cc` | 10 | Sync-mode performance counters | Main write path entry point |
+| `db/db_impl/db_impl_open.cc` | 13 | Recovery path timing and telemetry | DB startup and WAL initialization |
+| `db/log_reader.cc` | 5 | CRC mismatch and corruption detection | Record validation during replay |
+| `db/log_format.h` | 4 | Configurable block-level macro logic | Block-level file structure |
+
+---
+
+## 5. Quick Access: Documentation and Verification
+* [README.md](./README.md): Main project landing page.
+* [report.md](./report.md): Formal Systems Engineering report.
+* [comparison.ipynb](./comparison.ipynb): Data verification and analysis notebook.
+
+### Quick Access: Instrumented Files
+* [db/db_impl/db_impl_write.cc](./db/db_impl/db_impl_write.cc): Performance counters for write modes.
+* [db/log_writer.cc](./db/log_writer.cc): Fragmentation and payload metrics.
+* [db/write_thread.cc](./db/write_thread.cc): Group commit efficiency logic.
+* [db/db_impl/db_impl_open.cc](./db/db_impl/db_impl_open.cc): Startup telemetry and recovery path.
+* [db/log_reader.cc](./db/log_reader.cc): CRC32 failure and corruption detection.
+
+---
+
 ## 6. Experimental Evaluations: Hypothesis vs. Reality
 
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
 
 *   **Hypothesis:** Enabling strict `fsync()` for every write will decrease throughput by several orders of magnitude as the system becomes bound by disk I/O latency rather than CPU/RAM speed.
-*   **Instrumentation:**
+*   **Instrumentation Point (`db_impl_write.cc`):**
     ```cpp
+    // Tracking fsync frequency to measure the 'Safety Tax'
     if (options.sync) rocksdb::WAL_Sync_Control.fetch_add(1);
     ```
 *   **Method:** Compared `Buffered` (OS cache) writes vs. `Strict Sync` (hardware flush) writes.
@@ -154,8 +116,9 @@ cd experiments && chmod +x viva_run.sh
 ### Study 2: Storage Efficiency (Fragmentation)
 
 *   **Hypothesis:** Maintaining fixed 32KB block alignment for the WAL (to optimize hardware page reads) will introduce a constant metadata overhead proportional to the record frequency.
-*   **Instrumentation:**
+*   **Instrumentation Point (`log_writer.cc`):**
     ```cpp
+    // Measuring payload vs header ratio per record
     rocksdb::WAL_Bytes_Payload.fetch_add(payload_size);
     ```
 *   **Method:** Measured `WAL_Bytes_Header` vs. `WAL_Bytes_Payload`.
@@ -167,8 +130,9 @@ cd experiments && chmod +x viva_run.sh
 ### Study 3: Recovery Reduction (MTTR Analysis)
 
 *   **Hypothesis:** Sacrificing strict consistency checks during startup (`kTolerateCorruptedTailRecords`) will significantly reduce the Mean Time To Recovery (MTTR).
-*   **Instrumentation:**
+*   **Instrumentation Point (`db_impl_open.cc`):**
     ```cpp
+    // High-resolution timing of the WAL replay loop
     auto start_t = Env::Default()->NowNanos();
     s = ReplayWAL(options, ...);
     rocksdb::WAL_Recovery_Mode.fetch_add(Env::Default()->NowNanos() - start_t);
@@ -182,8 +146,9 @@ cd experiments && chmod +x viva_run.sh
 ### Study 4: Group Commit Efficiency (Batching)
 
 *   **Hypothesis:** Under high thread contention, throughput will scale non-linearly as multiple threads are batched into a single "Group Commit" leader.
-*   **Instrumentation:**
+*   **Instrumentation Point (`write_thread.cc`):**
     ```cpp
+    // Capturing real-time batch sizes during leader/follower sync
     rocksdb::WAL_Group_Commit.fetch_add(new_batch_size);
     ```
 *   **Method:** Scaled concurrency from 1 to 8 threads under synchronous write pressure.
@@ -195,9 +160,9 @@ cd experiments && chmod +x viva_run.sh
 ### Study 5: Recovery Scaling (Volume Analysis)
 
 *   **Hypothesis:** Recovery time will exhibit a linear (O(N)) relationship with the volume of data stored in the WAL.
-*   **Instrumentation:**
+*   **Instrumentation Point (`db_impl_open.cc`):**
     ```cpp
-    // Timing full replay across scaled log volumes
+    // Tracking recovery time vs. uncompressed log volume
     auto t = ReplayWAL(options, ...); 
     ```
 *   **Method:** Measured replay time as the WAL volume scaled from 10k to 500k items.
