@@ -74,30 +74,35 @@ Before running experiments, we identified the critical assumptions this system r
 ## 6. Experimental Evaluations (Mandatory Modification)
 We modified the system by injecting `std::atomic` counters into the core source code to isolate and observe behavior.
 
-### Study 1: The "Safety Tax"
-**Observation:** Compared strict synchronization vs. buffered writes.
+### Study 1: The "Safety Tax" (Durability vs. Throughput)
+- **Observation:** Compared strict synchronization vs. buffered writes.
 ![Sync Throughput Analysis](./docs/images/exp1_throughput.png)
-**Result:** Enabling `fsync()` introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> reduction in throughput.
+- **Result:** Enabling `fsync()` introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> reduction in throughput.
+- **Theoretical Alignment:** This aligns with the latency gap between RAM-based page caches (nanoseconds) and non-volatile storage IOPS limits (milliseconds).
 
 ### Study 2: Storage Efficiency (Fragmentation)
-**Observation:** Measured header bytes vs. payload bytes during sequential insertion.
+- **Observation:** Measured header bytes vs. payload bytes during sequential insertion.
 ![Fragmentation Ratio](./docs/images/exp2_fragmentation.png)
-**Result:** Hardware-aligned fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> metadata fragmentation.
+- **Result:** Hardware-aligned fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> metadata fragmentation.
+- **Theoretical Alignment:** Internal fragmentation is the cost of optimizing block-aligned I/O, which reduces the number of physical IOPS required for large reads.
 
 ### Study 3: Recovery Modes (Crash Consistency)
-**Observation:** Tested different `WALRecoveryMode` settings during startup.
+- **Observation:** Tested different `WALRecoveryMode` settings during startup.
 ![Recovery Mode Performance](./docs/images/exp3_recovery_mode.png)
-**Result:** Adopting faster recovery logic (`kTolerateCorruptedTailRecords`) yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in Mean Time To Recovery (MTTR) baseline overhead (measured via clean-shutdown).
+- **Result:** Adopting faster recovery logic yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in MTTR baseline overhead.
+- **Theoretical Alignment:** By bypassing strict CRC validation for the log tail, we reduce CPU and I/O cycles on the startup critical path.
 
-### Study 4: Concurrency Scaling
-**Observation:** Measured throughput while scaling from 1 to 8 concurrent threads.
+### Study 4: Concurrency Scaling (Group Commit)
+- **Observation:** Measured throughput while scaling from 1 to 8 concurrent threads.
 ![Group Commit Efficiency](./docs/images/exp4_group_commit.png)
-**Result:** Group Commit batching amortizes I/O costs, delivering a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification.
+- **Result:** Group Commit batching delivers a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification.
+- **Theoretical Alignment:** This demonstrates "Effective Batching," where synchronization overhead is amortized across multiple logical writes.
 
 ### Study 5: MTTR Volume Scaling
-**Observation:** Measured recovery time as the uncompressed WAL volume grew.
+- **Observation:** Measured recovery time as the uncompressed WAL volume grew.
 ![Recovery Scaling Analysis](./docs/images/exp5_scaling.png)
-**Result:** WAL replay performance exhibits **Proportional Scaling** as data volume increases.
+- **Result:** WAL replay performance exhibits **Proportional Scaling** as data volume increases.
+- **Theoretical Alignment:** As an O(N) operation, WAL recovery time is bounded by the sequential read speed of the storage medium.
 
 ---
 
