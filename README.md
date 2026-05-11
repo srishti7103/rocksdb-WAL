@@ -73,6 +73,31 @@ Quantitative breakdown of instrumentation changes across the core RocksDB system
 | `db/log_reader.cc` | 5 | 0 | CRC mismatch and corruption detection |
 | `db/log_format.h` | 4 | 0 | Configurable block-level macro logic |
 
+### Code Instrumentation Highlights
+To ensure zero-impact telemetry, we used `std::atomic` counters injected directly into the critical execution path.
+
+**1. Batching Hook (`db/write_thread.cc`):**
+```cpp
+// Capturing real-time batch sizes during Group Commit
+rocksdb::WAL_Group_Commit.fetch_add(new_batch_size, std::memory_order_relaxed);
+```
+
+**2. Sync Boundary (`db/db_impl/db_impl_write.cc`):**
+```cpp
+// Tracking fsync frequency to measure the 'Safety Tax'
+if (options.sync) {
+    rocksdb::WAL_Sync_Control.fetch_add(1, std::memory_order_relaxed);
+}
+```
+
+**3. Recovery Timer (`db/db_impl/db_impl_open.cc`):**
+```cpp
+// Precise MTTR measurement for recovery scaling
+auto start_t = Env::Default()->NowNanos();
+s = ReplayWAL(options, ...);
+rocksdb::WAL_Recovery_Mode.fetch_add(Env::Default()->NowNanos() - start_t);
+```
+
 ---
 
 ## 4. Quick Access: Documentation and Verification

@@ -124,3 +124,13 @@ Our experiments prove the WAL is a carefully balanced engine of tradeoffs betwee
 - **Recovery Timing:** `db_impl_open.cc:1129`
 - **Batch Grouping:** `write_thread.cc:440`
 - **Integrity Validation:** `log_reader.cc:326`
+
+---
+
+## 9. Technical Appendix: Instrumentation Highlights
+We utilized `std::atomic` thread-safe counters to prevent instrumentation bias during high-concurrency benchmarks.
+
+*   **Group Commit Tracking:** `rocksdb::WAL_Group_Commit.fetch_add(batch_size);` (captured in `write_thread.cc`).
+*   **Sync Mode Observation:** `if (options.sync) rocksdb::WAL_Sync_Control.fetch_add(1);` (captured in `db_impl_write.cc`).
+*   **MTTR Timing:** `auto start = NowNanos(); ReplayWAL(); rocksdb::WAL_Recovery_Time.fetch_add(NowNanos() - start);` (captured in `db_impl_open.cc`).
+
