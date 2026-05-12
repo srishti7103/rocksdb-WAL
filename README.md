@@ -6,7 +6,7 @@ This project provides a deep-dive instrumentation and systems engineering analys
 
 ---
 
-## 1. Technical Foundation & Architecture
+## 1. Technical Foundation & Architecture:
 
 ### Architectural Overview
 RocksDB is optimized for fast storage environments. Our analysis maps the system to five core Big Data Engineering concepts:
