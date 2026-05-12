@@ -12,7 +12,7 @@ int main() {
     options.create_if_missing = true;
     std::ofstream csv("../results/wal_performance_telemetry.csv", std::ios_base::app);
 
-    std::vector<int> volumes = {10000, 50000, 100000, 500000};
+    std::vector<int> volumes = {10000, 100000, 250000, 500000, 750000, 1000000};
     
     for(int vol : volumes) {
         std::string kDBPath = "/tmp/rocksdb_recovery_scaling_bench_" + std::to_string(vol);

@@ -1,9 +1,9 @@
 Event,Count,Metric
 WAL_Batch,1,524000
-WAL_Batch,2,1570408
+WAL_Batch,2,1570716
 WAL_Batch,3,1000
 WAL_Sync_Control,Buffered,524000
-WAL_Sync_Control,NoWAL,1570408
+WAL_Sync_Control,NoWAL,1570716
 WAL_Sync_Control,StrictSync,1000
 WAL_Bytes_Header,5000,45740
 WAL_Bytes_Payload,5000,50000000
@@ -13,7 +13,9 @@ WAL_Recovery_Mode,TolerateCorrupted,100
 WAL_Group_Commit,1,1000
 WAL_Group_Commit,4,2500
 WAL_Group_Commit,8,4300
-WAL_Recovery,10000,33
-WAL_Recovery,50000,43
-WAL_Recovery,100000,77
-WAL_Recovery,500000,367
+WAL_Recovery,10000,18
+WAL_Recovery,100000,79
+WAL_Recovery,250000,1524
+WAL_Recovery,500000,359
+WAL_Recovery,750000,565
+WAL_Recovery,1000000,692
