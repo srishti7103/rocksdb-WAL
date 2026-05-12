@@ -160,7 +160,7 @@ The following table contrasts the original implementation with our instrumented 
 ## 8. Failure Analysis & System Resilience
 
 ### 1. What happens when data size increases significantly?
-MTTR grows linearly ($O(N)$). Without log rotation, a 10x increase in log volume leads to a 10x increase in recovery time.
+MTTR grows O (N) linearly. Without log rotation, a 10x increase in log volume leads to a 10x increase in recovery time.
 
 ### 2. What happens under skew?
 Write skew (high thread contention) triggers the **Group Commit** mechanism, making the system *more* efficient as batch sizes grow larger (4.3x gain).
