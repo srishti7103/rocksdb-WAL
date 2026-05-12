@@ -84,7 +84,9 @@ The following table contrasts the original implementation with our instrumented 
 | Instrumented File | Original Implementation | Modified Implementation | Lines Added (+) |
 | :--- | :--- | :--- | :--- |
 | **db/log_writer.cc** | Sequential record emission without internal size tracking. | Injected `fetch_add` logic into `AddRecord` to track payload vs metadata bytes. | **+19** |
+| **db/log_writer.h** | Standard header without telemetry exposure. | Declared external atomic counters for cross-module fragmentation tracking. | **+13** |
 | **db/write_thread.cc** | Group Commit queue management without batch-size exposure. | Captured `new_batch_size` within the leader-follower handoff for efficiency analysis. | **+10** |
+| **db/write_thread.h** | Standard header for write thread management. | Injected batch-size and throughput tracking metrics into the thread state. | **+19** |
 | **db/db_impl/db_impl_write.cc** | Standard write entry point that ignored durability-tier categorization. | Added conditional hooks to count `options.sync` vs `buffered` write events. | **+10** |
 | **db/db_impl/db_impl_open.cc** | Replayed WAL files during startup without performance measurement. | Wrapped the `ReplayWAL` loop in high-resolution nanosecond timers to calculate MTTR. | **+13** |
 | **db/log_reader.cc** | Validated records without exposing corruption frequency to the engine. | Hooked into the checksum validation path to count and log data integrity failures. | **+5** |
@@ -109,6 +111,8 @@ The following table contrasts the original implementation with our instrumented 
 ## 7. Experimental Evaluation: Hypothesis vs. Reality
 
 ### Study 1: The "Safety Tax" (Durability vs. Throughput)
+*   **Rationale:** In systems engineering, the "boundary crossing" (User Space to Kernel to Hardware) is the most expensive operation. We conducted this to quantify the exact throughput "cliff" encountered when moving from OS-buffered writes to hardware-synchronized writes.
+*   **Instrumentation:** We modified `db/db_impl/db_impl_write.cc` to inject atomic counters that categorize write events. This allowed us to isolate the latency of the `fsync()` system call.
 *   **Hypothesis:** Mandatory hardware synchronization will cause an exponential drop in throughput as the bottleneck shifts from RAM to Disk.
 *   **Result:** Strict synchronization introduces a <!-- DYNAMIC:SYNC_TAX -->**524x**<!-- END_DYNAMIC --> performance floor.
 <div align="center">
@@ -116,29 +120,37 @@ The following table contrasts the original implementation with our instrumented 
 </div>
 
 ### Study 2: Storage Efficiency (Fragmentation)
+*   **Rationale:** High-performance storage engines must align writes to hardware sectors (typically 4KB/32KB). We analyzed this to determine if this alignment causes significant "slack space" (fragmentation) that wastes disk capacity.
+*   **Instrumentation:** We modified `db/log_writer.cc` to track `payload_bytes` vs. `header_bytes` across 32KB block boundaries using `std::atomic` fetch-and-add logic.
 *   **Hypothesis:** Maintaining fixed 32KB alignment will introduce a metadata overhead proportional to record frequency.
-*   **Result:** Fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> internal fragmentation.
+*   **Result:** Fixed-block design introduces exactly <!-- DYNAMIC:FRAG_PCT -->**0.1%**<!-- END_DYNAMIC --> internal fragmentation, proving the design is highly space-efficient.
 <div align="center">
   <img src="./docs/images/exp2_fragmentation.png" width="400" />
 </div>
 
 ### Study 3: Recovery Reduction (MTTR Analysis)
-*   **Hypothesis:** Lenient consistency checks during startup will significantly reduce the Mean Time To Recovery (MTTR).
-*   **Result:** Lenient recovery yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in MTTR.
+*   **Rationale:** Availability is measured by MTTR (Mean Time To Recovery). We tested different recovery modes to identify the "knob" that allows a system to come back online fastest after a crash.
+*   **Instrumentation:** We hooked into `db/db_impl/db_impl_open.cc` with high-resolution nanosecond timers and used `db/log_reader.cc` to track CRC-32 checksum validation overhead.
+*   **Hypothesis:** Lenient consistency checks during startup will significantly reduce MTTR without compromising existing data.
+*   **Result:** `TolerateCorruptedTailRecords` yields a <!-- DYNAMIC:RECOVERY_REDUCTION -->**1.5x**<!-- END_DYNAMIC --> reduction in MTTR.
 <div align="center">
   <img src="./docs/images/exp3_recovery_mode.png" width="400" />
 </div>
 
 ### Study 4: Group Commit Efficiency (Batching)
-*   **Hypothesis:** Throughput will scale non-linearly with concurrency as multiple threads are batched into a single I/O operation.
-*   **Result:** Leader-follower batching delivers a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification.
+*   **Rationale:** To solve the `fsync` bottleneck, RocksDB uses a "Leader-Follower" pattern. We performed this study to measure how effectively the system amortizes I/O costs as concurrent thread pressure increases.
+*   **Instrumentation:** We captured the `new_batch_size` within `db/write_thread.cc` during the handoff phase, allowing us to correlate batch density with aggregate throughput.
+*   **Hypothesis:** Throughput will scale non-linearly with concurrency as multiple threads are batched into a single physical I/O operation.
+*   **Result:** Leader-follower batching delivers a <!-- DYNAMIC:GROUP_COMMIT -->**4.3x**<!-- END_DYNAMIC --> throughput amplification at high concurrency.
 <div align="center">
   <img src="./docs/images/exp4_group_commit.png" width="400" />
 </div>
 
 ### Study 5: Recovery Scaling (Volume Analysis)
+*   **Rationale:** Systems must have predictable scaling. We conducted this to verify that recovery time remains linear ($O(N)$) and does not degrade exponentially as the Write-Ahead Log grows.
+*   **Instrumentation:** We utilized the timers in `db/db_impl/db_impl_open.cc` to map total WAL replay duration against the raw volume of uncompressed log data.
 *   **Hypothesis:** Recovery time will exhibit a linear relationship with the volume of data stored in the WAL.
-*   **Result:** Replay duration exhibits **Proportional Scaling (O(N))**.
+*   **Result:** Replay duration exhibits strict **Proportional Scaling (O(N))**, confirming predictable recovery windows.
 <div align="center">
   <img src="./docs/images/exp5_scaling.png" width="400" />
 </div>
