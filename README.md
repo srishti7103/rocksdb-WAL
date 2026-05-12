@@ -147,7 +147,7 @@ The following table contrasts the original implementation with our instrumented 
 </div>
 
 ### Study 5: Recovery Scaling (Volume Analysis)
-*   **Rationale:** Systems must have predictable scaling. We conducted this to verify that recovery time remains linear ($O(N)$) and does not degrade exponentially as the Write-Ahead Log grows.
+*   **Rationale:** Systems must have predictable scaling. We conducted this to verify that recovery time remains linear (O(N)) and does not degrade exponentially as the Write-Ahead Log grows.
 *   **Instrumentation:** We utilized the timers in `db/db_impl/db_impl_open.cc` to map total WAL replay duration against the raw volume of uncompressed log data.
 *   **Hypothesis:** Recovery time will exhibit a linear relationship with the volume of data stored in the WAL.
 *   **Result:** Replay duration exhibits strict **Proportional Scaling (O(N))**, confirming predictable recovery windows.
